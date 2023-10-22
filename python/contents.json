@@ -1,0 +1,29 @@
+{
+  "playback_info": {
+    "auto_repeat_mode": null,
+    "controls": null,
+    "is_shuffle_active": null,
+    "playback_rate": null,
+    "playback_status": "playing"
+  },
+  "timeline_properties": {
+    "end_time": 0,
+    "last_updated_time": -11644473600,
+    "max_seek_time": 0,
+    "min_seek_time": 0,
+    "position": 0,
+    "start_time": 0
+  },
+  "media_properties": {
+    "album_artist": "",
+    "album_title": "",
+    "album_track_count": 0,
+    "artist": "",
+    "genres": [],
+    "subtitle": "",
+    "thumbnail": "d:/Formats/Disk/Programming/Python/Projects/mpris_http_control/python/content/media_thumb.jpg",
+    "title": "sorokin_ivan - Twitch",
+    "track_number": 0,
+    "thumbnail_url": "file:///d:/Formats/Disk/Programming/Python/Projects/mpris_http_control/python/content/media_thumb.jpg"
+  }
+}

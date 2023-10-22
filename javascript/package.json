@@ -1,0 +1,17 @@
+{
+  "name": "httpcontrol",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node ."
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@nodert-win10-21h1/windows.foundation.collections": "^0.1.6",
+    "@nodert-win10-21h1/windows.media.control": "^0.1.6",
+    "@nodert-win10-21h1/windows.storage.streams": "^0.1.6"
+  }
+}

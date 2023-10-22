@@ -1,0 +1,16 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+"winrt.windows.media.control" = "*"
+"winrt.windows.storage.streams" = "*"
+"winrt.windows.foundation" = "*"
+"winrt.windows.foundation.collections" = "*"
+"winrt.windows.media" = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.11"
