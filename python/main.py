@@ -16,7 +16,6 @@ log.set_level(log.LEVELS.INFO)
 
 def update(d):
     global data
-    d["metadata"]["accent"] = get_color(d["metadata"]["cover"])
     data = d
     write_file(DIRNAME + "/content/contents.json", json.dumps(data, indent="  "))
 
