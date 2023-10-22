@@ -6,8 +6,6 @@ from server import App
 from player import Player
 from utils import *
 
-from color import get_color
-
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 data = {}
