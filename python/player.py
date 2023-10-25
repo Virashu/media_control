@@ -41,7 +41,7 @@ class Player:
         # self.data = {}
         self.data = json.loads(read_file(f"{DIRNAME}/content/template.json"))
         self.data["media_properties"]["thumbnail_data"] = b64encode(
-            open(f"{DIRNAME}/content/placeholder.png", "rb").read()
+            read_file_bytes(f"{DIRNAME}/content/placeholder.png")
         ).decode()
 
     def update_data(self, key, value) -> None:

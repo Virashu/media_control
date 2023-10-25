@@ -13,8 +13,7 @@ log.set_level(log.LEVELS.INFO)
 
 
 def update(d):
-    global data
-    data = d
+    data.update(d)
     write_file(DIRNAME + "/content/contents.json", json.dumps(data, indent="  "))
 
 

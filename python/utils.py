@@ -13,9 +13,11 @@ def async_callback(func: Callable) -> Callable:
 def write_file(filename: str, contents: str | bytes) -> None:
     """Write contents to a file"""
     if isinstance(contents, str):
-        open(filename, "w").write(contents)
+        with open(filename, "w") as f:
+            f.write(contents)
     elif isinstance(contents, bytes):
-        open(filename, "wb").write(contents)
+        with open(filename, "wb") as f:
+            f.write(contents)
     else:
         raise TypeError(
             f"Wrong type. Expected `str` or `bytes`, got `{type(contents)}`"
@@ -24,9 +26,11 @@ def write_file(filename: str, contents: str | bytes) -> None:
 
 def read_file(filename: str) -> str:
     """Read a file"""
-    return open(filename, "r").read()
+    with open(filename, "r") as f:
+        return f.read()
 
 
 def read_file_bytes(filename: str) -> bytes:
     """Read a file as bytes"""
-    return open(filename, "rb").read()
+    with open(filename, "rb") as f:
+        return f.read()

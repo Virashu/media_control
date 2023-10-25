@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="index.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="info">
+        <img src="./placeholder.png" alt="*cover*" id="cover" />
+
+        <div id="title">*title*</div>
+        <div id="artist">*artist*</div>
+        <!-- <div id="duration">*duration*</div> -->
+        <!-- <div id="position">*position*</div> -->
+      </div>
+      
+      <div class="controls">
+        <button onclick="control('prev')">prev</button>
+        <button onclick="control('pause')">pause</button>
+        <button onclick="control('next')">next</button>
+        <button onclick="control('repeat')">repeat</button>
+      </div>
+      <div class="fix">
+      <button onclick="update()">Update</button>
+    </div>
+    </div>
+    <script src="index.js"></script>
+  </body>
+</html>

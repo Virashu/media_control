@@ -5,6 +5,8 @@ from os.path import exists
 import log
 from mimetypes import guess_type
 
+from python.utils import read_file
+
 
 __all__ = ["App"]
 
@@ -126,7 +128,7 @@ class App:
                     self.end_headers()
                     return
 
-                content = open(abspath, "r").read()
+                content = read_file(abspath)
 
                 self.send_response(200)
 
