@@ -1,11 +1,13 @@
+from copy import copy, deepcopy
+from functools import partial
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-from typing import Callable
+from typing import Callable, Self, Any
 from os.path import exists
 import log
 from mimetypes import guess_type
 
-from python.utils import read_file
+from utils import read_file
 
 
 __all__ = ["App"]
@@ -20,6 +22,15 @@ class _Request:
 
 class _Response:
     __slots__ = ["end", "send", "status", "headers", "add"]
+
+
+class Request(_Request):
+    ...
+
+
+class Response(_Response):
+    def send(self, data: str | dict) -> Self:
+        ...
 
 
 class _Server(BaseHTTPRequestHandler):
@@ -45,7 +56,7 @@ class App:
 
             log.info("GET", self.path)
 
-            if self.path in _routes_arg:
+            if self.path.rstrip("/") in _routes_arg:
                 _req = _Request()
                 _res = _Response()
 
@@ -103,7 +114,7 @@ class App:
                 _res.headers = _set_headers
                 _res.add = _add
 
-                _routes_arg[self.path](_req, _res)
+                _routes_arg[self.path.rstrip("/")](_req, _res)
 
                 self.send_response(response["status"])
 
@@ -156,8 +167,8 @@ class App:
         webServer.serve_forever()
 
     def get(self, path: str) -> Callable:
-        def decorator(func: Callable):
-            self.routes[path] = func
+        def decorator(func: Callable[[Request, Response], Any]):
+            self.routes[path.rstrip("/")] = deepcopy(func)
             return func
 
         return decorator
@@ -183,7 +194,7 @@ if __name__ == "__main__":
     #     res.add("<style>*{font-family:'Fira Code';}</style>")
 
     @app.get("/api")
-    def _(req, res):
+    def _(req, res: Response):
         res.send('API<br><a href="/"><-</a>')
         res.add("<style>*{font-family:'Fira Code';}</style>")
         res.add(f"{req.path}")

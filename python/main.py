@@ -2,7 +2,7 @@ import asyncio
 import json
 
 import log
-from server import App
+from server import App, Response
 from player import Player
 from utils import *
 
@@ -10,6 +10,7 @@ from utils import *
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 data = {}
 log.set_level(log.LEVELS.INFO)
+control = read_file(f"{DIRNAME}/public/control.html")
 
 
 def update(d):
@@ -19,10 +20,26 @@ def update(d):
 
 player = Player(update)
 
+commands = {
+    "pause": player.play_pause,
+    "prev": player.prev,
+    "repeat": player.toggle_repeat,
+    "shuffle": player.toggle_shuffle,
+    "play": player.play,
+    "stop": player.stop,
+    "next": player.next,
+}
+
+
+def create_command(app, name, command):
+    @app.get(f"/control/{name}")
+    def _(req, res):
+        log.kawaii(f"Running command: {name}")
+        asyncio.run(command())
+        res.send(control)
+
 
 def start_server():
-    control = read_file(DIRNAME + "/public/control.html")
-
     app = App()
 
     @app.get("/")
@@ -33,25 +50,8 @@ def start_server():
     def _(req, res):
         res.send(control)
 
-    @app.get("/control/pause")
-    def _(req, res):
-        asyncio.run(player.play_pause())
-        res.send(control)
-
-    @app.get("/control/prev")
-    def _(req, res):
-        asyncio.run(player.prev())
-        res.send(control)
-
-    @app.get("/control/next")
-    def _(req, res):
-        asyncio.run(player.next())
-        res.send(control)
-
-    @app.get("/control/repeat")
-    def _(req, res):
-        asyncio.run(player.toggle_repeat())
-        res.send(control)
+    for command in commands.items():
+        create_command(app, *command)
 
     @app.get("/data")
     def _(req, res):

@@ -89,7 +89,7 @@ def error(*args, **kwargs):
 def kawaii(*args, **kwargs):
     if colored:
         s = kwargs.get("sep", " ")
-        s = s.join(("(♡)", *args))
+        s = s.join(("(♡)", *map(str, args)))
         c = [31, 33, 32, 36, 34, 35]
         r = "".join((f"\x1b[{c[i % len(c)]}m{s[i]}") for i in range(len(s)))
         print(r, "\x1b[0m", **kwargs)
