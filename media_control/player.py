@@ -1,5 +1,13 @@
+__all__ = ["Player"]
+
 from base64 import b64encode
 from typing import Any, Callable
+from time import time
+import json
+from pprint import pformat
+import logging
+import asyncio
+
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as MediaManager,
     GlobalSystemMediaTransportControlsSession as MediaSession,
@@ -11,19 +19,11 @@ from winrt.windows.storage.streams import (
     InputStreamOptions,
     IRandomAccessStreamReference,
 )
-from time import time
-import asyncio
-import json
-from pprint import pformat
 
-from . import log
-from .utils import *
-
-__all__ = ["Player"]
+from .utils import read_file, read_file_bytes, async_callback, write_file
 
 
-log.set_level("info")
-
+logger = logging.getLogger(__name__)
 
 async def read_stream_into_buffer(
     stream_ref: IRandomAccessStreamReference, buffer: Buffer
@@ -113,7 +113,7 @@ class Player:
         self.send_data()
 
     async def session_events(self, *_: Any):
-        log.info("Session changed")
+        logger.info("Session changed")
 
         if not self.manager:
             return
@@ -140,17 +140,17 @@ class Player:
         )
 
     async def sessions_changed(self, *_: Any):
-        log.info("Sessions changed")
+        logger.info("Sessions changed")
 
         if self.manager is None:
             return
 
         sessions = list(self.manager.get_sessions())
 
-        log.debug("Active sessions count:", len(sessions))
+        logger.debug("Active sessions count: %s", len(sessions))
 
     async def media_properties_changed(self, *_):
-        log.info("Media properties changed")
+        logger.info("Media properties changed")
 
         if not self.session:
             return
@@ -174,7 +174,7 @@ class Player:
             try:
                 info_dict[field] = info.__getattribute__(field)
             except AttributeError:
-                log.warn(f"Cannot get attribute '{field}'")
+                logger.warning("Cannot get attribute '%s'", field)
 
         info_dict["genres"] = list(info_dict["genres"])
 
@@ -191,9 +191,9 @@ class Player:
                 if img_bytes:
                     thumb_img = img_bytes
             except OSError as e:
-                log.error("Failed to get thumbnail!\n", e)
+                logger.error("Failed to get thumbnail!\n%s", e)
         else:
-            log.warn("No correct thumbnail info, using placeholder.")
+            logger.warning("No correct thumbnail info, using placeholder.")
         # log.kawaii(str(thumb_img))
         thumbnail_data = b64encode(thumb_img).decode("utf-8")
         write_file(f"{DIRNAME}/content/media_thumb.png", thumb_img)
@@ -201,11 +201,11 @@ class Player:
         info_dict["thumbnail_url"] = "file:///" + info_dict["thumbnail"]
         info_dict["thumbnail_data"] = thumbnail_data
 
-        log.debug(pformat(info_dict))
+        logger.debug(pformat(info_dict))
         self.update_data("media_properties", info_dict)
 
     async def playback_info_changed(self, *_):
-        log.info("Playback info changed")
+        logger.info("Playback info changed")
 
         if not self.session:
             return
@@ -224,7 +224,7 @@ class Player:
             try:
                 info_dict[field] = info.__getattribute__(field)
             except AttributeError:
-                log.warn(f"Cannot get attribute '{field}'")
+                logger.warning("Cannot get attribute '%s'", field)
         status_codes = {
             0: "closed",
             1: "opened",
@@ -242,11 +242,11 @@ class Player:
         if (repeat_mode := info_dict.get("auto_repeat_mode")) is not None:
             info_dict["auto_repeat_mode"] = repeat_codes[int(repeat_mode)]
         info_dict["controls"] = None
-        log.debug(pformat(info_dict))
+        logger.debug(pformat(info_dict))
         self.update_data("playback_info", info_dict)
 
     async def timeline_properties_changed(self, *_):
-        log.info("Timeline properties changed")
+        logger.info("Timeline properties changed")
         if not self.session:
             return
 
@@ -266,7 +266,7 @@ class Player:
             try:
                 info_dict[field] = info.__getattribute__(field)
             except AttributeError:
-                log.warn(f"Cannot get attribute '{field}'")
+                logger.warning("Cannot get attribute '%s'", field)
 
         for f in (
             "end_time",
@@ -278,7 +278,7 @@ class Player:
             info_dict[f] = int(info_dict[f].total_seconds())
         info_dict["last_updated_time"] = int(info_dict["last_updated_time"].timestamp())
         info_dict["position_soft"] = info_dict["position"]
-        log.debug(pformat(info_dict))
+        logger.debug(pformat(info_dict))
         self.update_data("timeline_properties", info_dict)
 
     async def play(self):

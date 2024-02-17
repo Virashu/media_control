@@ -1,18 +1,24 @@
 import asyncio
 import json
-import threading
+import logging
 import sys
+import threading
 
 from saaba import App, Request, Response
 
-from media_control import log
 from media_control.player import Player
-from media_control.utils import *
+from media_control.utils import read_file, write_file
 
+
+logging.getLogger("media_control.player").disabled = True
+
+saaba_logger = logging.getLogger("saaba")
+saaba_logger.disabled = False
+
+logger = logging.root
+logger.setLevel(logging.INFO)
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
-
-log.set_level(log.LEVELS.INFO)
 
 data = {}
 control = read_file(f"{DIRNAME}/media_control/public/control.html")
@@ -41,7 +47,7 @@ commands = {
 def create_command(app: App, name: str, command):
     @app.get(f"/control/{name}")
     def _(req: Request, res: Response):
-        log.kawaii(f"Running command: {name}")
+        logger.info("Running command: %s", name)
         asyncio.run(command())
         res.send(control)
 
@@ -50,21 +56,28 @@ def start_server():
     app = App()
 
     @app.get("/")
-    def _(req: Request, res: Response):
+    def _(_, res: Response):
         res.send('<a href="/control">control</a><br><a href="/data">data</a>')
 
     @app.get("/control")
-    def _(req: Request, res: Response):
+    def _(_, res: Response):
         res.send(control)
 
     for command in commands.items():
         create_command(app, *command)
 
-    @app.get("/data")
+    @app.get("/control/seek")
     def _(req: Request, res: Response):
+        position = req.query.get("position")
+        # player.seek(position)
+        logger.info("Seeking to %s", position)
+        res.send(control)
+
+    @app.get("/data")
+    def _(_, res: Response):
         res.send(data)
 
-    app.listen("0.0.0.0", 8888, lambda: log.info("Server started!"))
+    app.listen("0.0.0.0", 8888)
 
 
 def start_media_control():
@@ -87,5 +100,5 @@ try:
         p2.join(1)
 
 except KeyboardInterrupt:
-    log.kawaii("Goodbye!")
+    logger.info("Goodbye!")
     sys.exit()
