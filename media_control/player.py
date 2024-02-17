@@ -25,6 +25,7 @@ from .utils import read_file, read_file_bytes, async_callback, write_file
 
 logger = logging.getLogger(__name__)
 
+
 async def read_stream_into_buffer(
     stream_ref: IRandomAccessStreamReference, buffer: Buffer
 ) -> None:
@@ -294,8 +295,9 @@ class Player:
             await self.session.try_pause_async()
 
     async def set_position(self, position: int):
+        """Position in seconds"""
         if self.session is not None:
-            await self.session.try_change_playback_position_async(position)
+            await self.session.try_change_playback_position_async(int(position * 1e7))
 
     async def play_pause(self):
         if self.session is not None:
@@ -350,8 +352,8 @@ class Player:
             return
         if (duration := timeline_properties.max_seek_time) is None:
             return
-        position = int(duration * percentage)
-        await self.session.try_change_playback_position_async(position)
+        position = int(duration.total_seconds() * percentage / 100)
+        await self.set_position(position)
 
     async def rewind(self):
         if self.session is None:

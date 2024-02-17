@@ -10,14 +10,6 @@ from media_control.player import Player
 from media_control.utils import read_file, write_file
 
 
-logging.getLogger("media_control.player").disabled = True
-
-saaba_logger = logging.getLogger("saaba")
-saaba_logger.disabled = False
-
-logger = logging.root
-logger.setLevel(logging.INFO)
-
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
 data = {}
@@ -46,8 +38,8 @@ commands = {
 
 def create_command(app: App, name: str, command):
     @app.get(f"/control/{name}")
-    def _(req: Request, res: Response):
-        logger.info("Running command: %s", name)
+    def _(_, res: Response):
+        logging.info("Running command: %s", name)
         asyncio.run(command())
         res.send(control)
 
@@ -68,9 +60,9 @@ def start_server():
 
     @app.get("/control/seek")
     def _(req: Request, res: Response):
-        position = req.query.get("position")
-        # player.seek(position)
-        logger.info("Seeking to %s", position)
+        position = int(float(req.query.get("position")))
+        asyncio.run(player.seek_percentage(position))
+        logging.info("Seeking to %s", position)
         res.send(control)
 
     @app.get("/data")
@@ -93,12 +85,8 @@ try:
     p1.start()
     p2.start()
 
-    while p1.is_alive():
-        p1.join(1)
-
-    while p2.is_alive():
-        p2.join(1)
+    p1.join()
+    p2.join()
 
 except KeyboardInterrupt:
-    logger.info("Goodbye!")
     sys.exit()
