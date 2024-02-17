@@ -6,21 +6,18 @@ import threading
 
 from saaba import App, Request, Response
 
-from media_control.player import Player
-from media_control.utils import read_file, write_file
+from .player import Player
+from .utils import write_file
 
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
 data = {}
-control = read_file(f"{DIRNAME}/media_control/public/control.html")
 
 
-def update(d):
+def update(d) -> None:
     data.update(d)
-    write_file(
-        DIRNAME + "/media_control/content/contents.json", json.dumps(data, indent="  ")
-    )
+    write_file(DIRNAME + "/content/contents.json", json.dumps(data, indent="  "))
 
 
 player = Player(update)
@@ -41,7 +38,7 @@ def create_command(app: App, name: str, command):
     def _(_, res: Response):
         logging.info("Running command: %s", name)
         asyncio.run(command())
-        res.send(control)
+        res.send("")
 
 
 def start_server():
@@ -53,7 +50,7 @@ def start_server():
 
     @app.get("/control")
     def _(_, res: Response):
-        res.send(control)
+        res.send("")
 
     for command in commands.items():
         create_command(app, *command)
@@ -63,7 +60,7 @@ def start_server():
         position = int(float(req.query.get("position")))
         asyncio.run(player.seek_percentage(position))
         logging.info("Seeking to %s", position)
-        res.send(control)
+        res.send("")
 
     @app.get("/data")
     def _(_, res: Response):
