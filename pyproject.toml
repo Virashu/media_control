@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "media_control"
+version = "0.1.0"
+description = ""
+authors = ["virashu <svladichek@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+"winrt-Windows.Media.Control" = "^2.0.0b1"
+winrt-windows-foundation = "^2.0.0b1"
+winrt-windows-foundation-collections = "^2.0.0b1"
+winrt-windows-media = "^2.0.0b1"
+winrt-windows-storage-streams = "^2.0.0b1"
+saaba = {git = "https://github.com/virashu/saaba"}
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

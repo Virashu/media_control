@@ -13,7 +13,8 @@
     "max_seek_time": 0,
     "min_seek_time": 0,
     "position": 0,
-    "start_time": 0
+    "start_time": 0,
+    "position_soft": 0
   },
   "media_properties": {
     "album_artist": "",

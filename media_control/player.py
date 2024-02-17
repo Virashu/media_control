@@ -1,6 +1,8 @@
 from base64 import b64encode
+from typing import Any, Callable
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as MediaManager,
+    GlobalSystemMediaTransportControlsSession as MediaSession,
 )
 
 from winrt.windows.storage.streams import (
@@ -9,13 +11,13 @@ from winrt.windows.storage.streams import (
     InputStreamOptions,
     IRandomAccessStreamReference,
 )
-
+from time import time
 import asyncio
 import json
 from pprint import pformat
 
-import log
-from utils import *
+from . import log
+from .utils import *
 
 __all__ = ["Player"]
 
@@ -34,17 +36,17 @@ DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
 
 class Player:
-    def __init__(self, callback) -> None:
+    def __init__(self, callback: Callable) -> None:
         self.update_callback = callback
-        self.manager = None
-        self.session = None
+        self.manager: MediaManager | None = None
+        self.session: MediaSession | None = None
         # self.data = {}
         self.data = json.loads(read_file(f"{DIRNAME}/content/template.json"))
         self.data["media_properties"]["thumbnail_data"] = b64encode(
             read_file_bytes(f"{DIRNAME}/content/placeholder.png")
         ).decode()
 
-    def update_data(self, key, value) -> None:
+    def update_data(self, key: Any, value: Any) -> None:
         self.data[key] = value
         self.send_data()
 
@@ -62,8 +64,8 @@ class Player:
             },
             "status": self.data["playback_info"]["playback_status"],
             "shuffle": self.data["playback_info"]["is_shuffle_active"],
-            "position": self.data["timeline_properties"]["position"],
-            "loop": self.data["playback_info"]["auto_repeat_mode"],
+            "position": self.data["timeline_properties"]["position_soft"],
+            "loop": self.data["playback_info"].get("auto_repeat_mode"),
         }
         self.update_callback(data_send)
 
@@ -77,10 +79,41 @@ class Player:
             await self.playback_info_changed()
             await self.timeline_properties_changed()
             await self.media_properties_changed()
+
         self.send_data()
 
-    async def session_events(self, *_):
-        log.info(f"Session changed")
+        while True:
+            self.update_time()
+
+            await asyncio.sleep(0.1)
+
+    def update_time(self):
+        if not self.session:
+            return
+        if self.data["playback_info"]["playback_status"] != "playing":
+            return
+        now = time()
+
+        position = self.data["timeline_properties"]["position"]
+        last_update = self.data["timeline_properties"]["last_updated_time"]
+        rate = self.data["playback_info"]["playback_rate"]
+
+        if last_update < 0:
+            return
+
+        delta_time = now - last_update
+        delta_position = int(rate * delta_time)
+
+        position_now = position + delta_position
+
+        self.data["timeline_properties"]["position_soft"] = min(
+            position_now, self.data["timeline_properties"]["end_time"]
+        )
+
+        self.send_data()
+
+    async def session_events(self, *_: Any):
+        log.info("Session changed")
 
         if not self.manager:
             return
@@ -106,8 +139,8 @@ class Player:
             async_callback(self.timeline_properties_changed)
         )
 
-    async def sessions_changed(self, *_):
-        log.info(f"Sessions changed")
+    async def sessions_changed(self, *_: Any):
+        log.info("Sessions changed")
 
         if self.manager is None:
             return
@@ -117,7 +150,7 @@ class Player:
         log.debug("Active sessions count:", len(sessions))
 
     async def media_properties_changed(self, *_):
-        log.info(f"Media properties changed")
+        log.info("Media properties changed")
 
         if not self.session:
             return
@@ -160,7 +193,7 @@ class Player:
             except OSError as e:
                 log.error("Failed to get thumbnail!\n", e)
         else:
-            log.warn("No correct tumbnail info, using placeholder.")
+            log.warn("No correct thumbnail info, using placeholder.")
         # log.kawaii(str(thumb_img))
         thumbnail_data = b64encode(thumb_img).decode("utf-8")
         write_file(f"{DIRNAME}/content/media_thumb.png", thumb_img)
@@ -172,10 +205,11 @@ class Player:
         self.update_data("media_properties", info_dict)
 
     async def playback_info_changed(self, *_):
-        log.info(f"Playback info changed")
+        log.info("Playback info changed")
 
         if not self.session:
             return
+
         info = self.session.get_playback_info()
         info_dict = {}
         fields = (
@@ -205,14 +239,14 @@ class Player:
             2: "all",
         }
         info_dict["playback_status"] = status_codes[int(info_dict["playback_status"])]
-        if (repeat_mode := info_dict["auto_repeat_mode"]) is not None:
+        if (repeat_mode := info_dict.get("auto_repeat_mode")) is not None:
             info_dict["auto_repeat_mode"] = repeat_codes[int(repeat_mode)]
         info_dict["controls"] = None
         log.debug(pformat(info_dict))
         self.update_data("playback_info", info_dict)
 
     async def timeline_properties_changed(self, *_):
-        log.info(f"Timeline properties changed")
+        log.info("Timeline properties changed")
         if not self.session:
             return
 
@@ -243,6 +277,7 @@ class Player:
         ):
             info_dict[f] = int(info_dict[f].total_seconds())
         info_dict["last_updated_time"] = int(info_dict["last_updated_time"].timestamp())
+        info_dict["position_soft"] = info_dict["position"]
         log.debug(pformat(info_dict))
         self.update_data("timeline_properties", info_dict)
 
@@ -317,6 +352,11 @@ class Player:
             return
         position = int(duration * percentage)
         await self.session.try_change_playback_position_async(position)
+
+    async def rewind(self):
+        if self.session is None:
+            return
+        await self.session.try_rewind_async()
 
 
 if __name__ == "__main__":

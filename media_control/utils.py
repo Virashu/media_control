@@ -13,7 +13,7 @@ def async_callback(func: Callable) -> Callable:
 def write_file(filename: str, contents: str | bytes) -> None:
     """Write contents to a file"""
     if isinstance(contents, str):
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(contents)
     elif isinstance(contents, bytes):
         with open(filename, "wb") as f:
@@ -26,7 +26,7 @@ def write_file(filename: str, contents: str | bytes) -> None:
 
 def read_file(filename: str) -> str:
     """Read a file"""
-    with open(filename, "r") as f:
+    with open(filename, "r", encoding="utf-8") as f:
         return f.read()
 
 

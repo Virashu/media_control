@@ -1,21 +1,28 @@
 import asyncio
 import json
+import threading
+import sys
 
-import log
-from server import App, Response
-from player import Player
-from utils import *
+from saaba import App, Request, Response
+
+from media_control import log
+from media_control.player import Player
+from media_control.utils import *
 
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
-data = {}
+
 log.set_level(log.LEVELS.INFO)
-control = read_file(f"{DIRNAME}/public/control.html")
+
+data = {}
+control = read_file(f"{DIRNAME}/media_control/public/control.html")
 
 
 def update(d):
     data.update(d)
-    write_file(DIRNAME + "/content/contents.json", json.dumps(data, indent="  "))
+    write_file(
+        DIRNAME + "/media_control/content/contents.json", json.dumps(data, indent="  ")
+    )
 
 
 player = Player(update)
@@ -31,9 +38,9 @@ commands = {
 }
 
 
-def create_command(app, name, command):
+def create_command(app: App, name: str, command):
     @app.get(f"/control/{name}")
-    def _(req, res):
+    def _(req: Request, res: Response):
         log.kawaii(f"Running command: {name}")
         asyncio.run(command())
         res.send(control)
@@ -43,18 +50,18 @@ def start_server():
     app = App()
 
     @app.get("/")
-    def _(req, res):
+    def _(req: Request, res: Response):
         res.send('<a href="/control">control</a><br><a href="/data">data</a>')
 
     @app.get("/control")
-    def _(req, res):
+    def _(req: Request, res: Response):
         res.send(control)
 
     for command in commands.items():
         create_command(app, *command)
 
     @app.get("/data")
-    def _(req, res):
+    def _(req: Request, res: Response):
         res.send(data)
 
     app.listen("0.0.0.0", 8888, lambda: log.info("Server started!"))
@@ -65,20 +72,20 @@ def start_media_control():
     loop.run_until_complete(player.main())
 
 
-import threading
+p1 = threading.Thread(target=start_media_control, daemon=True)
+p2 = threading.Thread(target=start_server, daemon=True)
 
-p1 = threading.Thread(target=start_media_control)
-p2 = threading.Thread(target=start_server)
-p1.daemon = True
-p2.daemon = True
 
 try:
     p1.start()
     p2.start()
+
     while p1.is_alive():
         p1.join(1)
+
     while p2.is_alive():
         p2.join(1)
+
 except KeyboardInterrupt:
     log.kawaii("Goodbye!")
-    quit(0)
+    sys.exit()
