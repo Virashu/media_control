@@ -4,9 +4,12 @@ from typing import Callable
 __all__ = ["async_callback", "write_file", "read_file", "read_file_bytes"]
 
 
-def async_callback(func: Callable) -> Callable:
+def async_callback(callback: Callable) -> Callable:
     """Use async function as sync callback"""
-    f = lambda *a: asyncio.run(func(*a))
+
+    def f(*args, **kwargs):
+        return asyncio.run(callback(*args, **kwargs))
+
     return f
 
 

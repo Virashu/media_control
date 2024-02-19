@@ -57,7 +57,14 @@ def start_server():
 
     @app.get("/control/seek")
     def _(req: Request, res: Response):
-        position = int(float(req.query.get("position")))
+        if req.query is None:
+            return
+        position = req.query.get("position")
+        if not isinstance(position, str):
+            return
+        if not position.isnumeric():
+            return
+        position = int(float(position))
         asyncio.run(player.seek_percentage(position))
         logging.info("Seeking to %s", position)
         res.send("")

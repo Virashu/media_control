@@ -1,12 +1,12 @@
 __all__ = ["Player"]
 
-from base64 import b64encode
-from typing import Any, Callable
-from time import time
-import json
-from pprint import pformat
-import logging
 import asyncio
+import json
+import logging
+from base64 import b64encode
+from pprint import pformat
+from time import time
+from typing import Any, Callable
 
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as MediaManager,
@@ -37,6 +37,8 @@ DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
 
 class Player:
+    """Media controller using Windows.Media.Control"""
+
     def __init__(self, callback: Callable) -> None:
         self.update_callback = callback
         self.manager: MediaManager | None = None
@@ -47,11 +49,11 @@ class Player:
             read_file_bytes(f"{DIRNAME}/content/placeholder.png")
         ).decode()
 
-    def update_data(self, key: Any, value: Any) -> None:
+    def _update_data(self, key: Any, value: Any) -> None:
         self.data[key] = value
-        self.send_data()
+        self._send_data()
 
-    def send_data(self):
+    def _send_data(self):
         data_send = {
             "provider": self.data["provider"],
             "metadata": {
@@ -72,23 +74,23 @@ class Player:
 
     async def main(self) -> None:
         self.manager = await MediaManager.request_async()
-        self.manager.add_current_session_changed(async_callback(self.session_events))
-        self.manager.add_sessions_changed(async_callback(self.sessions_changed))
-        await self.session_events(self.manager)
+        self.manager.add_current_session_changed(async_callback(self._session_events))
+        self.manager.add_sessions_changed(async_callback(self._sessions_changed))
+        await self._session_events(self.manager)
 
         if self.session:
-            await self.playback_info_changed()
-            await self.timeline_properties_changed()
-            await self.media_properties_changed()
+            await self._playback_info_changed()
+            await self._timeline_properties_changed()
+            await self._media_properties_changed()
 
-        self.send_data()
+        self._send_data()
 
         while True:
-            self.update_time()
+            self._update_time()
 
             await asyncio.sleep(0.1)
 
-    def update_time(self):
+    def _update_time(self):
         if not self.session:
             return
         if self.data["playback_info"]["playback_status"] != "playing":
@@ -111,9 +113,9 @@ class Player:
             position_now, self.data["timeline_properties"]["end_time"]
         )
 
-        self.send_data()
+        self._send_data()
 
-    async def session_events(self, *_: Any):
+    async def _session_events(self, *_: Any):
         logger.info("Session changed")
 
         if not self.manager:
@@ -124,33 +126,36 @@ class Player:
         if not self.session:
             return
 
-        self.update_data("provider", self.session.source_app_user_model_id)
+        self._update_data("provider", self.session.source_app_user_model_id)
 
-        await self.playback_info_changed()
-        await self.timeline_properties_changed()
-        await self.media_properties_changed()
+        await self._playback_info_changed()
+        await self._timeline_properties_changed()
+        await self._media_properties_changed()
 
         self.session.add_media_properties_changed(
-            async_callback(self.media_properties_changed)
+            async_callback(self._media_properties_changed)
         )
         self.session.add_playback_info_changed(
-            async_callback(self.playback_info_changed)
+            async_callback(self._playback_info_changed)
         )
         self.session.add_timeline_properties_changed(
-            async_callback(self.timeline_properties_changed)
+            async_callback(self._timeline_properties_changed)
         )
 
-    async def sessions_changed(self, *_: Any):
+    async def _sessions_changed(self, *_: Any):
         logger.info("Sessions changed")
 
         if self.manager is None:
             return
 
-        sessions = list(self.manager.get_sessions())
+        if (sessions := self.manager.get_sessions()) is None:
+            return
+
+        sessions = list(sessions)
 
         logger.debug("Active sessions count: %s", len(sessions))
 
-    async def media_properties_changed(self, *_):
+    async def _media_properties_changed(self, *_):
         logger.info("Media properties changed")
 
         if not self.session:
@@ -173,7 +178,7 @@ class Player:
 
         for field in fields:
             try:
-                info_dict[field] = info.__getattribute__(field)
+                info_dict[field] = getattr(info, field)
             except AttributeError:
                 logger.warning("Cannot get attribute '%s'", field)
 
@@ -203,9 +208,9 @@ class Player:
         info_dict["thumbnail_data"] = thumbnail_data
 
         logger.debug(pformat(info_dict))
-        self.update_data("media_properties", info_dict)
+        self._update_data("media_properties", info_dict)
 
-    async def playback_info_changed(self, *_):
+    async def _playback_info_changed(self, *_):
         logger.info("Playback info changed")
 
         if not self.session:
@@ -223,7 +228,7 @@ class Player:
         )
         for field in fields:
             try:
-                info_dict[field] = info.__getattribute__(field)
+                info_dict[field] = getattr(info, field)
             except AttributeError:
                 logger.warning("Cannot get attribute '%s'", field)
         status_codes = {
@@ -244,9 +249,9 @@ class Player:
             info_dict["auto_repeat_mode"] = repeat_codes[int(repeat_mode)]
         info_dict["controls"] = None
         logger.debug(pformat(info_dict))
-        self.update_data("playback_info", info_dict)
+        self._update_data("playback_info", info_dict)
 
-    async def timeline_properties_changed(self, *_):
+    async def _timeline_properties_changed(self, *_):
         logger.info("Timeline properties changed")
         if not self.session:
             return
@@ -265,7 +270,7 @@ class Player:
 
         for field in fields:
             try:
-                info_dict[field] = info.__getattribute__(field)
+                info_dict[field] = getattr(info, field)
             except AttributeError:
                 logger.warning("Cannot get attribute '%s'", field)
 
@@ -280,7 +285,7 @@ class Player:
         info_dict["last_updated_time"] = int(info_dict["last_updated_time"].timestamp())
         info_dict["position_soft"] = info_dict["position"]
         logger.debug(pformat(info_dict))
-        self.update_data("timeline_properties", info_dict)
+        self._update_data("timeline_properties", info_dict)
 
     async def play(self):
         if self.session is not None:
@@ -312,6 +317,7 @@ class Player:
             await self.session.try_skip_previous_async()
 
     async def change_repeat(self, mode: str | int):
+        """mode: 'none', 'track', 'list'"""
         if isinstance(mode, str):
             mode = {"none": 0, "track": 1, "list": 2}[mode]
         if self.session is not None:
@@ -328,13 +334,7 @@ class Player:
             return
         if (repeat := playback_info.auto_repeat_mode) is None:
             return
-        match repeat:
-            case 0:
-                await self.session.try_change_auto_repeat_mode_async(1)
-            case 1:
-                await self.session.try_change_auto_repeat_mode_async(2)
-            case 2:
-                await self.session.try_change_auto_repeat_mode_async(0)
+        await self.session.try_change_auto_repeat_mode_async((repeat + 1) % 3)
 
     async def toggle_shuffle(self):
         if self.session is None:
