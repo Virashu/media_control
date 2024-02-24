@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import threading
+import typing as t
 
 from saaba import App, Request, Response
 
@@ -12,7 +13,7 @@ from .utils import write_file
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
-data = {}
+data: dict[str, t.Any] = {}
 
 
 def update(d) -> None:
@@ -70,8 +71,13 @@ def start_server():
         res.send("")
 
     @app.get("/data")
-    def _(_, res: Response):
-        res.send(data)
+    def _(req: Request, res: Response):
+        if req.query and req.query.get("thumbnail", "true") == "true":
+            res.send(data)
+        else:
+            temp_data = data.copy()
+            del temp_data["media_properties"]["thumbnail_data"]
+            res.send(temp_data)
 
     app.listen("0.0.0.0", 8888)
 
