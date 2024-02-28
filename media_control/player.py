@@ -1,21 +1,24 @@
-__all__ = ["Player"]
+__all__ = ["Player", "MediaRepeatMode"]
 
 import asyncio
 import json
 import logging
+import typing as t
 from base64 import b64encode
 from pprint import pformat
 from time import time
-from typing import Any, Callable
 
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as MediaManager,
     GlobalSystemMediaTransportControlsSession as MediaSession,
 )
 
+from winrt.windows.media import MediaPlaybackAutoRepeatMode as MediaRepeatMode
+
 from winrt.windows.storage.streams import (
     DataReader,
     Buffer,
+    IBuffer,
     InputStreamOptions,
     IRandomAccessStreamReference,
 )
@@ -26,8 +29,8 @@ from .utils import read_file, read_file_bytes, async_callback, write_file
 logger = logging.getLogger(__name__)
 
 
-async def read_stream_into_buffer(
-    stream_ref: IRandomAccessStreamReference, buffer: Buffer
+async def _read_stream_into_buffer(
+    stream_ref: IRandomAccessStreamReference, buffer: IBuffer
 ) -> None:
     readable_stream = await stream_ref.open_read_async()
     readable_stream.read_async(buffer, buffer.capacity, InputStreamOptions.READ_AHEAD)
@@ -35,11 +38,13 @@ async def read_stream_into_buffer(
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
+_PlayerUpdateCallback: t.TypeAlias = t.Callable[[dict[str, t.Any]], t.Any]
+
 
 class Player:
     """Media controller using Windows.Media.Control"""
 
-    def __init__(self, callback: Callable[[], Any]) -> None:
+    def __init__(self, callback: _PlayerUpdateCallback) -> None:
         self.update_callback = callback
         self.manager: MediaManager | None = None
         self.session: MediaSession | None = None
@@ -49,7 +54,7 @@ class Player:
             read_file_bytes(f"{DIRNAME}/content/placeholder.png")
         ).decode()
 
-    def _update_data(self, key: Any, value: Any) -> None:
+    def _update_data(self, key: t.Any, value: t.Any) -> None:
         self.data[key] = value
         self._send_data()
 
@@ -72,7 +77,9 @@ class Player:
         }
         self.update_callback(data_send)
 
-    async def main(self) -> None:
+    async def load(self) -> None:
+        """Load"""
+
         self.manager = await MediaManager.request_async()
         self.manager.add_current_session_changed(async_callback(self._session_events))
         self.manager.add_sessions_changed(async_callback(self._sessions_changed))
@@ -84,6 +91,11 @@ class Player:
             await self._media_properties_changed()
 
         self._send_data()
+
+    async def main(self) -> None:
+        """Main loop"""
+
+        await self.load()
 
         while True:
             self._update_time()
@@ -115,7 +127,7 @@ class Player:
 
         self._send_data()
 
-    async def _session_events(self, *_: Any):
+    async def _session_events(self, *_: t.Any):
         logger.info("Session changed")
 
         if not self.manager:
@@ -142,7 +154,7 @@ class Player:
             async_callback(self._timeline_properties_changed)
         )
 
-    async def _sessions_changed(self, *_: Any):
+    async def _sessions_changed(self, *_: t.Any):
         logger.info("Sessions changed")
 
         if self.manager is None:
@@ -154,6 +166,29 @@ class Player:
         sessions = list(sessions)
 
         logger.debug("Active sessions count: %s", len(sessions))
+
+    async def _try_load_thumbnail(
+        self, stream_ref: IRandomAccessStreamReference
+    ) -> bytes | None:
+        if stream_ref is None:
+            return
+
+        try:
+            thumb_read_buffer: IBuffer = Buffer(5_000_000)  # type: ignore
+            await _read_stream_into_buffer(stream_ref, thumb_read_buffer)
+
+            buffer_reader = DataReader.from_buffer(thumb_read_buffer)
+            if buffer_reader is None:
+                return
+
+            byte_buffer = buffer_reader.read_buffer(thumb_read_buffer.length)
+            if byte_buffer is None:
+                return
+
+            return bytes(byte_buffer)
+
+        except OSError as e:
+            logger.error("Failed to get thumbnail!\n%s", e)
 
     async def _media_properties_changed(self, *_):
         logger.info("Media properties changed")
@@ -186,21 +221,16 @@ class Player:
 
         thumb_stream_ref = info_dict["thumbnail"]
 
-        thumb_img = read_file_bytes(f"{DIRNAME}/content/placeholder.png")
-        if thumb_stream_ref is not None:
-            try:
-                thumb_read_buffer = Buffer(5000000)
-                await read_stream_into_buffer(thumb_stream_ref, thumb_read_buffer)
-                buffer_reader = DataReader.from_buffer(thumb_read_buffer)
-                byte_buffer = buffer_reader.read_buffer(thumb_read_buffer.length)
-                img_bytes = bytes(byte_buffer)
-                if img_bytes:
-                    thumb_img = img_bytes
-            except OSError as e:
-                logger.error("Failed to get thumbnail!\n%s", e)
+        thumb_img: bytes
+
+        thumb = await self._try_load_thumbnail(thumb_stream_ref)
+
+        if thumb is not None:
+            thumb_img = thumb
         else:
+            thumb_img = read_file_bytes(f"{DIRNAME}/content/placeholder.png")
             logger.warning("No correct thumbnail info, using placeholder.")
-        # log.kawaii(str(thumb_img))
+
         thumbnail_data = b64encode(thumb_img).decode("utf-8")
         write_file(f"{DIRNAME}/content/media_thumb.png", thumb_img)
         info_dict["thumbnail"] = f"{DIRNAME}/content/media_thumb.png"
@@ -300,7 +330,8 @@ class Player:
             await self.session.try_pause_async()
 
     async def set_position(self, position: int):
-        """Position in seconds"""
+        """Set position in seconds"""
+
         if self.session is not None:
             await self.session.try_change_playback_position_async(int(position * 1e7))
 
@@ -316,36 +347,57 @@ class Player:
         if self.session is not None:
             await self.session.try_skip_previous_async()
 
-    async def change_repeat(self, mode: str | int):
-        """mode: 'none', 'track', 'list'"""
-        if isinstance(mode, str):
-            mode = {"none": 0, "track": 1, "list": 2}[mode]
-        if self.session is not None:
-            await self.session.try_change_auto_repeat_mode_async(mode)
+    async def set_repeat(self, mode: str | int | MediaRepeatMode):
+        """Set repeat mode
 
-    async def change_shuffle(self, shuffle: bool):
+        Available modes: 'none', 'track', 'list'"""
+
+        _mode: MediaRepeatMode
+        if isinstance(mode, str):
+            _mode = {
+                "none": MediaRepeatMode.NONE,
+                "track": MediaRepeatMode.TRACK,
+                "list": MediaRepeatMode.LIST,
+            }.get(mode, MediaRepeatMode.NONE)
+        elif isinstance(mode, int):
+            _mode = MediaRepeatMode(mode)
+        else:
+            _mode = mode
         if self.session is not None:
-            await self.session.try_change_shuffle_async(shuffle)
+            await self.session.try_change_auto_repeat_mode_async(_mode)
+
+    async def set_shuffle(self, shuffle: bool):
+        """shuffle: True, False"""
+
+        if self.session is not None:
+            await self.session.try_change_shuffle_active_async(shuffle)
 
     async def toggle_repeat(self):
+        """Toggle repeat (none, track, list)"""
+
         if self.session is None:
             return
         if (playback_info := self.session.get_playback_info()) is None:
             return
         if (repeat := playback_info.auto_repeat_mode) is None:
             return
-        await self.session.try_change_auto_repeat_mode_async((repeat + 1) % 3)
+        _mode = MediaRepeatMode((repeat + 1) % 3)
+        await self.session.try_change_auto_repeat_mode_async(_mode)
 
     async def toggle_shuffle(self):
+        """Toggle shuffle (on, off)"""
+
         if self.session is None:
             return
         if (playback_info := self.session.get_playback_info()) is None:
             return
         if (shuffle := playback_info.is_shuffle_active) is None:
             return
-        await self.session.try_change_shuffle_async(not shuffle)
+        await self.session.try_change_shuffle_active_async(not shuffle)
 
     async def seek_percentage(self, percentage: int | float):
+        """Seek to percentage in range [0, 100]"""
+
         if self.session is None:
             return
         if (timeline_properties := self.session.get_timeline_properties()) is None:
@@ -356,6 +408,8 @@ class Player:
         await self.set_position(position)
 
     async def rewind(self):
+        """Idk what it is"""
+
         if self.session is None:
             return
         await self.session.try_rewind_async()
@@ -363,15 +417,15 @@ class Player:
 
 if __name__ == "__main__":
 
-    def update(data):
+    def _update(data):
         write_file(f"{DIRNAME}/content/contents.json", json.dumps(data, indent="  "))
 
-    async def run():
+    async def _run():
         await _p.main()
         await asyncio.Future()
 
-    _p = Player(update)
+    _p = Player(_update)
     try:
-        asyncio.run(run())
+        asyncio.run(_run())
     except KeyboardInterrupt:
         ...
