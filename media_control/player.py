@@ -1,3 +1,9 @@
+"""
+
+Media Control API
+"""
+
+
 __all__ = ["Player", "MediaRepeatMode"]
 
 import asyncio
@@ -329,7 +335,7 @@ class Player:
         if self.session is not None:
             await self.session.try_pause_async()
 
-    async def set_position(self, position: int):
+    async def set_position(self, position: float):
         """Set position in seconds"""
 
         if self.session is not None:
@@ -346,6 +352,8 @@ class Player:
     async def prev(self):
         if self.session is not None:
             await self.session.try_skip_previous_async()
+
+    previous = prev
 
     async def set_repeat(self, mode: str | int | MediaRepeatMode):
         """Set repeat mode
