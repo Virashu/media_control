@@ -1,5 +1,6 @@
 import asyncio
 import json
+import copy
 import logging
 import sys
 import threading
@@ -72,11 +73,11 @@ def start_server():
 
     @app.get("/data")
     def _(req: Request, res: Response):
-        if req.query and req.query.get("thumbnail", "true") == "true":
+        if req.query and req.query.get("cover", "true") == "true":
             res.send(data)
         else:
-            temp_data = data.copy()
-            del temp_data["media_properties"]["thumbnail_data"]
+            temp_data = copy.deepcopy(data)
+            del temp_data["metadata"]["cover_data"]
             res.send(temp_data)
 
     app.listen("0.0.0.0", 8888)

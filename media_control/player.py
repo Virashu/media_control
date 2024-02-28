@@ -39,7 +39,7 @@ DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 class Player:
     """Media controller using Windows.Media.Control"""
 
-    def __init__(self, callback: Callable) -> None:
+    def __init__(self, callback: Callable[[], Any]) -> None:
         self.update_callback = callback
         self.manager: MediaManager | None = None
         self.session: MediaSession | None = None
