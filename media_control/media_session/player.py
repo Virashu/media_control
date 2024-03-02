@@ -3,12 +3,12 @@
 Media Control API
 """
 
-
 __all__ = ["Player", "MediaRepeatMode"]
 
 import asyncio
 import json
 import logging
+from typing import Any, Callable, TypeAlias, Optional
 import typing as t
 from base64 import b64encode
 from pprint import pformat
@@ -27,9 +27,19 @@ from winrt.windows.storage.streams import (
     IBuffer,
     InputStreamOptions,
     IRandomAccessStreamReference,
+    IRandomAccessStreamWithContentType,
 )
 
-from .utils import read_file, read_file_bytes, async_callback, write_file
+from ..utils import read_file, read_file_bytes, write_file
+
+
+def _async_callback(callback: Callable) -> Callable:
+    """Use async function as sync callback"""
+
+    def f(*args, **kwargs):
+        return asyncio.run(callback(*args, **kwargs))
+
+    return f
 
 
 logger = logging.getLogger(__name__)
@@ -38,13 +48,27 @@ logger = logging.getLogger(__name__)
 async def _read_stream_into_buffer(
     stream_ref: IRandomAccessStreamReference, buffer: IBuffer
 ) -> None:
-    readable_stream = await stream_ref.open_read_async()
+    readable_stream: IRandomAccessStreamWithContentType = (
+        await stream_ref.open_read_async()
+    )
     readable_stream.read_async(buffer, buffer.capacity, InputStreamOptions.READ_AHEAD)
 
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
-_PlayerUpdateCallback: t.TypeAlias = t.Callable[[dict[str, t.Any]], t.Any]
+_PlayerUpdateCallback: TypeAlias = Callable[[dict[str, Any]], Any]
+
+###########
+# Constants #
+###########
+
+MEDIA_DATA_TEMPLATE: dict[str, Any] = json.loads(
+    read_file(f"{DIRNAME}/content/template.json")
+)
+COVER_FILE: str = f"{DIRNAME}/content/media_thumb.png"
+COVER_PLACEHOLDER_FILE: str = f"{DIRNAME}/content/placeholder.png"
+COVER_PLACEHOLDER_RAW: bytes = read_file_bytes(COVER_PLACEHOLDER_FILE)
+COVER_PLACEHOLDER_B64: str = b64encode(COVER_PLACEHOLDER_RAW).decode("utf-8")
 
 
 class Player:
@@ -52,15 +76,13 @@ class Player:
 
     def __init__(self, callback: _PlayerUpdateCallback) -> None:
         self.update_callback = callback
-        self.manager: MediaManager | None = None
+        self.manager: Optional[MediaManager] = None
         self.session: MediaSession | None = None
-        # self.data = {}
-        self.data = json.loads(read_file(f"{DIRNAME}/content/template.json"))
-        self.data["media_properties"]["thumbnail_data"] = b64encode(
-            read_file_bytes(f"{DIRNAME}/content/placeholder.png")
-        ).decode()
 
-    def _update_data(self, key: t.Any, value: t.Any) -> None:
+        self.data = MEDIA_DATA_TEMPLATE.copy()
+        self.data["media_properties"]["thumbnail_data"] = COVER_PLACEHOLDER_B64
+
+    def _update_data(self, key: Any, value: Any) -> None:
         self.data[key] = value
         self._send_data()
 
@@ -87,8 +109,8 @@ class Player:
         """Load"""
 
         self.manager = await MediaManager.request_async()
-        self.manager.add_current_session_changed(async_callback(self._session_events))
-        self.manager.add_sessions_changed(async_callback(self._sessions_changed))
+        self.manager.add_current_session_changed(_async_callback(self._session_events))
+        self.manager.add_sessions_changed(_async_callback(self._sessions_changed))
         await self._session_events(self.manager)
 
         if self.session:
@@ -151,13 +173,13 @@ class Player:
         await self._media_properties_changed()
 
         self.session.add_media_properties_changed(
-            async_callback(self._media_properties_changed)
+            _async_callback(self._media_properties_changed)
         )
         self.session.add_playback_info_changed(
-            async_callback(self._playback_info_changed)
+            _async_callback(self._playback_info_changed)
         )
         self.session.add_timeline_properties_changed(
-            async_callback(self._timeline_properties_changed)
+            _async_callback(self._timeline_properties_changed)
         )
 
     async def _sessions_changed(self, *_: t.Any):
@@ -234,13 +256,15 @@ class Player:
         if thumb is not None:
             thumb_img = thumb
         else:
-            thumb_img = read_file_bytes(f"{DIRNAME}/content/placeholder.png")
+            thumb_img = COVER_PLACEHOLDER_RAW
             logger.warning("No correct thumbnail info, using placeholder.")
 
-        thumbnail_data = b64encode(thumb_img).decode("utf-8")
-        write_file(f"{DIRNAME}/content/media_thumb.png", thumb_img)
-        info_dict["thumbnail"] = f"{DIRNAME}/content/media_thumb.png"
-        info_dict["thumbnail_url"] = "file:///" + info_dict["thumbnail"]
+        write_file(COVER_FILE, thumb_img)
+
+        thumbnail_data: str = b64encode(thumb_img).decode("utf-8")
+
+        info_dict["thumbnail"] = COVER_FILE
+        info_dict["thumbnail_url"] = "file:///" + COVER_FILE
         info_dict["thumbnail_data"] = thumbnail_data
 
         logger.debug(pformat(info_dict))

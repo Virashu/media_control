@@ -9,7 +9,7 @@ import time
 
 from saaba import App, Request, Response
 
-from .player import Player
+from .media_session.player import Player
 from .utils import write_file
 
 
@@ -49,11 +49,14 @@ def start_server():
 
     @app.get("/")
     def _(_, res: Response):
-        res.send('<a href="/control">control</a><br><a href="/data">data</a>')
-
-    @app.get("/control")
-    def _(_, res: Response):
-        res.send("")
+        res.send(
+            """
+            <h1>MediaControl API</h1>
+            <p>This is API please consider using frontend for it.</p>
+            <br>
+            <a href="/data"> data </a>
+            """
+        )
 
     for command in commands.items():
         create_command(app, *command)

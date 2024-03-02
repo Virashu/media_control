@@ -1,16 +1,4 @@
-import asyncio
-from typing import Callable
-
-__all__ = ["async_callback", "write_file", "read_file", "read_file_bytes"]
-
-
-def async_callback(callback: Callable) -> Callable:
-    """Use async function as sync callback"""
-
-    def f(*args, **kwargs):
-        return asyncio.run(callback(*args, **kwargs))
-
-    return f
+__all__ = ["write_file", "read_file", "read_file_bytes"]
 
 
 def write_file(filename: str, contents: str | bytes) -> None:
