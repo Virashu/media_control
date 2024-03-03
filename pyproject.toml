@@ -15,6 +15,9 @@ winrt-windows-storage-streams = "^2.0.0b1"
 saaba = {git = "https://github.com/virashu/saaba"}
 
 
+[tool.poetry.group.dev.dependencies]
+pylint = "^3.1.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

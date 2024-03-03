@@ -3,31 +3,31 @@
 Media Control API
 """
 
-__all__ = ["Player", "MediaRepeatMode"]
+__all__ = ["MediaSession", "MediaRepeatMode"]
 
 import asyncio
 import json
 import logging
-from typing import Any, Callable, TypeAlias, Optional
-import typing as t
+from typing import Any, Callable, TypeAlias
 from base64 import b64encode
 from pprint import pformat
 from time import time
 
 from winrt.windows.media.control import (
-    GlobalSystemMediaTransportControlsSessionManager as MediaManager,
-    GlobalSystemMediaTransportControlsSession as MediaSession,
+    GlobalSystemMediaTransportControlsSessionManager as _MediaManager,
+    GlobalSystemMediaTransportControlsSession as _MediaSession,
+    GlobalSystemMediaTransportControlsSessionMediaProperties as _MediaProperties,
 )
 
+# pylint: disable=no-name-in-module
 from winrt.windows.media import MediaPlaybackAutoRepeatMode as MediaRepeatMode
 
 from winrt.windows.storage.streams import (
-    DataReader,
-    Buffer,
-    IBuffer,
-    InputStreamOptions,
-    IRandomAccessStreamReference,
-    IRandomAccessStreamWithContentType,
+    Buffer as _Buffer,
+    IBuffer as _IBuffer,
+    IRandomAccessStreamReference as _StreamReference,
+    IRandomAccessStreamWithContentType as _Stream,
+    InputStreamOptions as _InputStreamOptions,
 )
 
 from ..utils import read_file, read_file_bytes, write_file
@@ -45,75 +45,75 @@ def _async_callback(callback: Callable) -> Callable:
 logger = logging.getLogger(__name__)
 
 
-async def _read_stream_into_buffer(
-    stream_ref: IRandomAccessStreamReference, buffer: IBuffer
-) -> None:
-    readable_stream: IRandomAccessStreamWithContentType = (
-        await stream_ref.open_read_async()
-    )
-    readable_stream.read_async(buffer, buffer.capacity, InputStreamOptions.READ_AHEAD)
-
-
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
-_PlayerUpdateCallback: TypeAlias = Callable[[dict[str, Any]], Any]
+MediaSessionUpdateCallback: TypeAlias = Callable[[dict[str, Any]], Any]
 
-###########
+#############
 # Constants #
-###########
+#############
 
 MEDIA_DATA_TEMPLATE: dict[str, Any] = json.loads(
-    read_file(f"{DIRNAME}/content/template.json")
+    read_file(f"{DIRNAME}/../content/template.json")
 )
-COVER_FILE: str = f"{DIRNAME}/content/media_thumb.png"
-COVER_PLACEHOLDER_FILE: str = f"{DIRNAME}/content/placeholder.png"
+COVER_FILE: str = f"{DIRNAME}/../content/media_thumb.png"
+COVER_PLACEHOLDER_FILE: str = f"{DIRNAME}/../content/placeholder.png"
 COVER_PLACEHOLDER_RAW: bytes = read_file_bytes(COVER_PLACEHOLDER_FILE)
 COVER_PLACEHOLDER_B64: str = b64encode(COVER_PLACEHOLDER_RAW).decode("utf-8")
 
 
-class Player:
+class MediaSession:
     """Media controller using Windows.Media.Control"""
 
-    def __init__(self, callback: _PlayerUpdateCallback) -> None:
-        self.update_callback = callback
-        self.manager: Optional[MediaManager] = None
-        self.session: MediaSession | None = None
+    def __init__(self, callback: MediaSessionUpdateCallback) -> None:
+        self._update_callback = callback
+        self._manager: _MediaManager | None = None
+        self._session: _MediaSession | None = None
 
-        self.data = MEDIA_DATA_TEMPLATE.copy()
-        self.data["media_properties"]["thumbnail_data"] = COVER_PLACEHOLDER_B64
+        self._data = MEDIA_DATA_TEMPLATE.copy()
+        self._data["media_properties"]["thumbnail_data"] = COVER_PLACEHOLDER_B64
 
     def _update_data(self, key: Any, value: Any) -> None:
-        self.data[key] = value
+        self._data[key] = value
         self._send_data()
 
-    def _send_data(self):
-        data_send = {
-            "provider": self.data["provider"],
+    @property
+    def data(self) -> dict[str, Any]:
+        """Get media session data"""
+        return {
+            "provider": self._data["provider"],
             "metadata": {
-                "title": self.data["media_properties"]["title"],
-                "album": self.data["media_properties"]["album_title"],
-                "album_artist": self.data["media_properties"]["album_artist"],
-                "artist": self.data["media_properties"]["artist"],
-                "cover": self.data["media_properties"]["thumbnail"],
-                "cover_data": self.data["media_properties"]["thumbnail_data"],
-                "duration": self.data["timeline_properties"]["end_time"],
+                "title": self._data["media_properties"]["title"],
+                "album": self._data["media_properties"]["album_title"],
+                "album_artist": self._data["media_properties"]["album_artist"],
+                "artist": self._data["media_properties"]["artist"],
+                "cover": self._data["media_properties"]["thumbnail"],
+                "cover_data": self._data["media_properties"]["thumbnail_data"],
+                "duration": self._data["timeline_properties"]["end_time"],
             },
-            "status": self.data["playback_info"]["playback_status"],
-            "shuffle": self.data["playback_info"]["is_shuffle_active"],
-            "position": self.data["timeline_properties"]["position_soft"],
-            "loop": self.data["playback_info"].get("auto_repeat_mode"),
+            "status": self._data["playback_info"]["playback_status"],
+            "shuffle": self._data["playback_info"]["is_shuffle_active"],
+            "position": self._data["timeline_properties"]["position_soft"],
+            "loop": self._data["playback_info"].get("auto_repeat_mode"),
         }
-        self.update_callback(data_send)
+
+    @property
+    def data_raw(self) -> dict[str, Any]:
+        """Get media session data"""
+        return self._data
+
+    def _send_data(self):
+        self._update_callback(self.data)
 
     async def load(self) -> None:
         """Load"""
 
-        self.manager = await MediaManager.request_async()
-        self.manager.add_current_session_changed(_async_callback(self._session_events))
-        self.manager.add_sessions_changed(_async_callback(self._sessions_changed))
-        await self._session_events(self.manager)
+        self._manager = await _MediaManager.request_async()
+        self._manager.add_current_session_changed(_async_callback(self._session_events))
+        self._manager.add_sessions_changed(_async_callback(self._sessions_changed))
+        await self._session_events(self._manager)
 
-        if self.session:
+        if self._session:
             await self._playback_info_changed()
             await self._timeline_properties_changed()
             await self._media_properties_changed()
@@ -131,15 +131,15 @@ class Player:
             await asyncio.sleep(0.1)
 
     def _update_time(self):
-        if not self.session:
+        if not self._session:
             return
-        if self.data["playback_info"]["playback_status"] != "playing":
+        if self._data["playback_info"]["playback_status"] != "playing":
             return
         now = time()
 
-        position = self.data["timeline_properties"]["position"]
-        last_update = self.data["timeline_properties"]["last_updated_time"]
-        rate = self.data["playback_info"]["playback_rate"]
+        position = self._data["timeline_properties"]["position"]
+        last_update = self._data["timeline_properties"]["last_updated_time"]
+        rate = self._data["playback_info"]["playback_rate"]
 
         if last_update < 0:
             return
@@ -149,46 +149,46 @@ class Player:
 
         position_now = position + delta_position
 
-        self.data["timeline_properties"]["position_soft"] = min(
-            position_now, self.data["timeline_properties"]["end_time"]
+        self._data["timeline_properties"]["position_soft"] = min(
+            position_now, self._data["timeline_properties"]["end_time"]
         )
 
         self._send_data()
 
-    async def _session_events(self, *_: t.Any):
+    async def _session_events(self, *_: Any):
         logger.info("Session changed")
 
-        if not self.manager:
+        if not self._manager:
             return
 
-        self.session = self.manager.get_current_session()
+        self._session = self._manager.get_current_session()
 
-        if not self.session:
+        if not self._session:
             return
 
-        self._update_data("provider", self.session.source_app_user_model_id)
+        self._update_data("provider", self._session.source_app_user_model_id)
 
         await self._playback_info_changed()
         await self._timeline_properties_changed()
         await self._media_properties_changed()
 
-        self.session.add_media_properties_changed(
+        self._session.add_media_properties_changed(
             _async_callback(self._media_properties_changed)
         )
-        self.session.add_playback_info_changed(
+        self._session.add_playback_info_changed(
             _async_callback(self._playback_info_changed)
         )
-        self.session.add_timeline_properties_changed(
+        self._session.add_timeline_properties_changed(
             _async_callback(self._timeline_properties_changed)
         )
 
-    async def _sessions_changed(self, *_: t.Any):
+    async def _sessions_changed(self, *_: Any) -> None:
         logger.info("Sessions changed")
 
-        if self.manager is None:
+        if self._manager is None:
             return
 
-        if (sessions := self.manager.get_sessions()) is None:
+        if (sessions := self._manager.get_sessions()) is None:
             return
 
         sessions = list(sessions)
@@ -196,42 +196,52 @@ class Player:
         logger.debug("Active sessions count: %s", len(sessions))
 
     async def _try_load_thumbnail(
-        self, stream_ref: IRandomAccessStreamReference
+        self, stream_ref: _StreamReference | None
     ) -> bytes | None:
+
         if stream_ref is None:
             return
 
+        readable_stream: _Stream = await stream_ref.open_read_async()
+        thumb_buffer: _IBuffer = _Buffer(readable_stream.size)  # type: ignore
+
         try:
-            thumb_read_buffer: IBuffer = Buffer(5_000_000)  # type: ignore
-            await _read_stream_into_buffer(stream_ref, thumb_read_buffer)
+            readable_stream.read_async(
+                thumb_buffer, thumb_buffer.capacity, _InputStreamOptions.READ_AHEAD
+            )
 
-            buffer_reader = DataReader.from_buffer(thumb_read_buffer)
-            if buffer_reader is None:
-                return
+            # buffer_reader = DataReader.from_buffer(thumb_buffer)
+            # if buffer_reader is None:
+            #     return
 
-            byte_buffer = buffer_reader.read_buffer(thumb_read_buffer.length)
-            if byte_buffer is None:
-                return
+            # byte_buffer = buffer_reader.read_buffer(thumb_buffer.length)
+            # if byte_buffer is None:
+            #     return
 
-            return bytes(byte_buffer)
+            return bytes(thumb_buffer)  # byte_buffer)
 
         except OSError as e:
             logger.error("Failed to get thumbnail!\n%s", e)
 
-    async def _media_properties_changed(self, *_):
+    async def _media_properties_changed(self, *_) -> None:
         logger.info("Media properties changed")
 
-        if not self.session:
+        if not self._session:
             return
 
-        info = await self.session.try_get_media_properties_async()
+        try:
+            info: _MediaProperties = (
+                await self._session.try_get_media_properties_async()
+            )
+        except PermissionError:
+            return
+
         info_dict = {}
         fields = [
             "album_artist",
             "album_title",
             "album_track_count",
             "artist",
-            "genres",
             "subtitle",
             "thumbnail",
             "title",
@@ -245,15 +255,15 @@ class Player:
             except AttributeError:
                 logger.warning("Cannot get attribute '%s'", field)
 
-        info_dict["genres"] = list(info_dict["genres"])
+        info_dict["genres"] = list(info.genres or [])
 
-        thumb_stream_ref = info_dict["thumbnail"]
+        thumb_stream_ref = info.thumbnail
 
         thumb_img: bytes
 
         thumb = await self._try_load_thumbnail(thumb_stream_ref)
 
-        if thumb is not None:
+        if thumb:  # != None & != ""
             thumb_img = thumb
         else:
             thumb_img = COVER_PLACEHOLDER_RAW
@@ -263,9 +273,10 @@ class Player:
 
         thumbnail_data: str = b64encode(thumb_img).decode("utf-8")
 
+        info_dict["thumbnail_data"] = thumbnail_data
+
         info_dict["thumbnail"] = COVER_FILE
         info_dict["thumbnail_url"] = "file:///" + COVER_FILE
-        info_dict["thumbnail_data"] = thumbnail_data
 
         logger.debug(pformat(info_dict))
         self._update_data("media_properties", info_dict)
@@ -273,10 +284,10 @@ class Player:
     async def _playback_info_changed(self, *_):
         logger.info("Playback info changed")
 
-        if not self.session:
+        if not self._session:
             return
 
-        info = self.session.get_playback_info()
+        info = self._session.get_playback_info()
         info_dict = {}
         fields = (
             "auto_repeat_mode",
@@ -313,10 +324,10 @@ class Player:
 
     async def _timeline_properties_changed(self, *_):
         logger.info("Timeline properties changed")
-        if not self.session:
+        if not self._session:
             return
 
-        info = self.session.get_timeline_properties()
+        info = self._session.get_timeline_properties()
         info_dict = {}
 
         fields = (
@@ -348,34 +359,34 @@ class Player:
         self._update_data("timeline_properties", info_dict)
 
     async def play(self):
-        if self.session is not None:
-            await self.session.try_play_async()
+        if self._session is not None:
+            await self._session.try_play_async()
 
     async def stop(self):
-        if self.session is not None:
-            await self.session.try_stop_async()
+        if self._session is not None:
+            await self._session.try_stop_async()
 
     async def pause(self):
-        if self.session is not None:
-            await self.session.try_pause_async()
+        if self._session is not None:
+            await self._session.try_pause_async()
 
     async def set_position(self, position: float):
         """Set position in seconds"""
 
-        if self.session is not None:
-            await self.session.try_change_playback_position_async(int(position * 1e7))
+        if self._session is not None:
+            await self._session.try_change_playback_position_async(int(position * 1e7))
 
     async def play_pause(self):
-        if self.session is not None:
-            await self.session.try_toggle_play_pause_async()
+        if self._session is not None:
+            await self._session.try_toggle_play_pause_async()
 
     async def next(self):
-        if self.session is not None:
-            await self.session.try_skip_next_async()
+        if self._session is not None:
+            await self._session.try_skip_next_async()
 
     async def prev(self):
-        if self.session is not None:
-            await self.session.try_skip_previous_async()
+        if self._session is not None:
+            await self._session.try_skip_previous_async()
 
     previous = prev
 
@@ -395,44 +406,44 @@ class Player:
             _mode = MediaRepeatMode(mode)
         else:
             _mode = mode
-        if self.session is not None:
-            await self.session.try_change_auto_repeat_mode_async(_mode)
+        if self._session is not None:
+            await self._session.try_change_auto_repeat_mode_async(_mode)
 
     async def set_shuffle(self, shuffle: bool):
         """shuffle: True, False"""
 
-        if self.session is not None:
-            await self.session.try_change_shuffle_active_async(shuffle)
+        if self._session is not None:
+            await self._session.try_change_shuffle_active_async(shuffle)
 
     async def toggle_repeat(self):
         """Toggle repeat (none, track, list)"""
 
-        if self.session is None:
+        if self._session is None:
             return
-        if (playback_info := self.session.get_playback_info()) is None:
+        if (playback_info := self._session.get_playback_info()) is None:
             return
         if (repeat := playback_info.auto_repeat_mode) is None:
             return
         _mode = MediaRepeatMode((repeat + 1) % 3)
-        await self.session.try_change_auto_repeat_mode_async(_mode)
+        await self._session.try_change_auto_repeat_mode_async(_mode)
 
     async def toggle_shuffle(self):
         """Toggle shuffle (on, off)"""
 
-        if self.session is None:
+        if self._session is None:
             return
-        if (playback_info := self.session.get_playback_info()) is None:
+        if (playback_info := self._session.get_playback_info()) is None:
             return
         if (shuffle := playback_info.is_shuffle_active) is None:
             return
-        await self.session.try_change_shuffle_active_async(not shuffle)
+        await self._session.try_change_shuffle_active_async(not shuffle)
 
     async def seek_percentage(self, percentage: int | float):
         """Seek to percentage in range [0, 100]"""
 
-        if self.session is None:
+        if self._session is None:
             return
-        if (timeline_properties := self.session.get_timeline_properties()) is None:
+        if (timeline_properties := self._session.get_timeline_properties()) is None:
             return
         if (duration := timeline_properties.max_seek_time) is None:
             return
@@ -442,9 +453,9 @@ class Player:
     async def rewind(self):
         """Idk what it is"""
 
-        if self.session is None:
+        if self._session is None:
             return
-        await self.session.try_rewind_async()
+        await self._session.try_rewind_async()
 
 
 if __name__ == "__main__":
@@ -456,7 +467,7 @@ if __name__ == "__main__":
         await _p.main()
         await asyncio.Future()
 
-    _p = Player(_update)
+    _p = MediaSession(_update)
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:

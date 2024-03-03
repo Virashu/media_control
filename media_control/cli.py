@@ -9,7 +9,7 @@ import time
 
 from saaba import App, Request, Response
 
-from .media_session.player import Player
+from .media_session.media_session import MediaSession
 from .utils import write_file
 
 
@@ -23,7 +23,7 @@ def update(d) -> None:
     write_file(DIRNAME + "/content/contents.json", json.dumps(data, indent="  "))
 
 
-player = Player(update)
+player = MediaSession(update)
 
 commands = {
     "pause": player.play_pause,

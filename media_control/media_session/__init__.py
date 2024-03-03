@@ -1,3 +1,3 @@
-__all__ = ["Player"]
+__all__ = ["MediaSession"]
 
-from .player import Player
+from .media_session import MediaSession
