@@ -16,7 +16,10 @@ from time import time
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as _MediaManager,
     GlobalSystemMediaTransportControlsSession as _MediaSession,
+    #
     GlobalSystemMediaTransportControlsSessionMediaProperties as _MediaProperties,
+    GlobalSystemMediaTransportControlsSessionPlaybackInfo as _PlaybackInfo,
+    GlobalSystemMediaTransportControlsSessionTimelineProperties as _TimelineProperties,
 )
 
 # pylint: disable=no-name-in-module
@@ -65,13 +68,18 @@ COVER_PLACEHOLDER_B64: str = b64encode(COVER_PLACEHOLDER_RAW).decode("utf-8")
 class MediaSession:
     """Media controller using Windows.Media.Control"""
 
-    def __init__(self, callback: MediaSessionUpdateCallback) -> None:
+    def __init__(
+        self, callback: MediaSessionUpdateCallback, initial_load: bool = True
+    ) -> None:
         self._update_callback = callback
         self._manager: _MediaManager | None = None
         self._session: _MediaSession | None = None
 
         self._data = MEDIA_DATA_TEMPLATE.copy()
         self._data["media_properties"]["thumbnail_data"] = COVER_PLACEHOLDER_B64
+
+        if initial_load:
+            asyncio.run(self.load())
 
     def _update_data(self, key: Any, value: Any) -> None:
         self._data[key] = value
@@ -102,7 +110,7 @@ class MediaSession:
         """Get media session data"""
         return self._data
 
-    def _send_data(self):
+    def _send_data(self) -> None:
         self._update_callback(self.data)
 
     async def load(self) -> None:
@@ -111,26 +119,27 @@ class MediaSession:
         self._manager = await _MediaManager.request_async()
         self._manager.add_current_session_changed(_async_callback(self._session_events))
         self._manager.add_sessions_changed(_async_callback(self._sessions_changed))
-        await self._session_events(self._manager)
 
-        if self._session:
-            await self._playback_info_changed()
-            await self._timeline_properties_changed()
-            await self._media_properties_changed()
+        await self._session_events(self._manager)
 
         self._send_data()
 
-    async def main(self) -> None:
+    async def update(self) -> None:
+        """Update"""
+
+        self._update_time()
+
+    async def loop(self) -> None:
         """Main loop"""
 
-        await self.load()
+        if self._manager is None:
+            await self.load()
 
         while True:
-            self._update_time()
-
+            await self.update()
             await asyncio.sleep(0.1)
 
-    def _update_time(self):
+    def _update_time(self) -> None:
         if not self._session:
             return
         if self._data["playback_info"]["playback_status"] != "playing":
@@ -155,15 +164,15 @@ class MediaSession:
 
         self._send_data()
 
-    async def _session_events(self, *_: Any):
+    async def _session_events(self, *_: Any) -> None:
         logger.info("Session changed")
 
-        if not self._manager:
+        if self._manager is None:
             return
 
         self._session = self._manager.get_current_session()
 
-        if not self._session:
+        if self._session is None:
             return
 
         self._update_data("provider", self._session.source_app_user_model_id)
@@ -210,15 +219,7 @@ class MediaSession:
                 thumb_buffer, thumb_buffer.capacity, _InputStreamOptions.READ_AHEAD
             )
 
-            # buffer_reader = DataReader.from_buffer(thumb_buffer)
-            # if buffer_reader is None:
-            #     return
-
-            # byte_buffer = buffer_reader.read_buffer(thumb_buffer.length)
-            # if byte_buffer is None:
-            #     return
-
-            return bytes(thumb_buffer)  # byte_buffer)
+            return bytes(thumb_buffer)
 
         except OSError as e:
             logger.error("Failed to get thumbnail!\n%s", e)
@@ -226,7 +227,7 @@ class MediaSession:
     async def _media_properties_changed(self, *_) -> None:
         logger.info("Media properties changed")
 
-        if not self._session:
+        if self._session is None:
             return
 
         try:
@@ -263,7 +264,7 @@ class MediaSession:
 
         thumb = await self._try_load_thumbnail(thumb_stream_ref)
 
-        if thumb:  # != None & != ""
+        if thumb:  # (thumb != None) & (thumb != b"")
             thumb_img = thumb
         else:
             thumb_img = COVER_PLACEHOLDER_RAW
@@ -284,10 +285,14 @@ class MediaSession:
     async def _playback_info_changed(self, *_):
         logger.info("Playback info changed")
 
-        if not self._session:
+        if self._session is None:
             return
 
-        info = self._session.get_playback_info()
+        info: _PlaybackInfo | None = self._session.get_playback_info()
+
+        if info is None:
+            return
+
         info_dict = {}
         fields = (
             "auto_repeat_mode",
@@ -324,10 +329,15 @@ class MediaSession:
 
     async def _timeline_properties_changed(self, *_):
         logger.info("Timeline properties changed")
+
         if not self._session:
             return
 
-        info = self._session.get_timeline_properties()
+        info: _TimelineProperties | None = self._session.get_timeline_properties()
+
+        if info is None:
+            return
+
         info_dict = {}
 
         fields = (
@@ -358,15 +368,25 @@ class MediaSession:
         logger.debug(pformat(info_dict))
         self._update_data("timeline_properties", info_dict)
 
-    async def play(self):
+    #
+    # PUBLIC METHODS
+    #
+
+    async def play(self) -> None:
+        """Start playback"""
+
         if self._session is not None:
             await self._session.try_play_async()
 
-    async def stop(self):
+    async def stop(self) -> None:
+        """Stop playback"""
+
         if self._session is not None:
             await self._session.try_stop_async()
 
-    async def pause(self):
+    async def pause(self) -> None:
+        """Pause playback"""
+
         if self._session is not None:
             await self._session.try_pause_async()
 
@@ -376,15 +396,21 @@ class MediaSession:
         if self._session is not None:
             await self._session.try_change_playback_position_async(int(position * 1e7))
 
-    async def play_pause(self):
+    async def play_pause(self) -> None:
+        """Toggle play/pause"""
+
         if self._session is not None:
             await self._session.try_toggle_play_pause_async()
 
-    async def next(self):
+    async def next(self) -> None:
+        """Select next track"""
+
         if self._session is not None:
             await self._session.try_skip_next_async()
 
-    async def prev(self):
+    async def prev(self) -> None:
+        """Select previous track"""
+
         if self._session is not None:
             await self._session.try_skip_previous_async()
 
@@ -464,7 +490,7 @@ if __name__ == "__main__":
         write_file(f"{DIRNAME}/content/contents.json", json.dumps(data, indent="  "))
 
     async def _run():
-        await _p.main()
+        await _p.loop()
         await asyncio.Future()
 
     _p = MediaSession(_update)

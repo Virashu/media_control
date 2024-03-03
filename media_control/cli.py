@@ -1,3 +1,5 @@
+"""Cli"""
+
 import asyncio
 import json
 import copy
@@ -37,7 +39,7 @@ commands = {
 
 
 def create_command(app: App, name: str, command):
-    @app.get(f"/control/{name}")
+    @app.route(["get", "post"], f"/control/{name}")
     def _(_, res: Response):
         logging.info("Running command: %s", name)
         asyncio.run(command())
@@ -75,6 +77,17 @@ def start_server():
         logging.info("Seeking to %s", position)
         res.send("")
 
+    @app.post("/control/seek")
+    def _(req: Request, res: Response):
+        if req.body is None:
+            return
+        position = req.body.get("position")
+        if not isinstance(position, int):
+            return
+        asyncio.run(player.seek_percentage(position))
+        logging.info("Seeking to %s", position)
+        res.send("")
+
     @app.get("/data")
     def _(req: Request, res: Response):
         if req.query and req.query.get("cover", "true") == "true":
@@ -89,7 +102,7 @@ def start_server():
 
 def start_media_control():
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(player.main())
+    loop.run_until_complete(player.loop())
 
 
 def main():

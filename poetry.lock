@@ -117,7 +117,7 @@ develop = false
 type = "git"
 url = "https://github.com/virashu/saaba"
 reference = "HEAD"
-resolved_reference = "877fa57399ad2f12b0de67c69347057f68726ff0"
+resolved_reference = "4aadb5b567a456226aeffa72a0b7fa6d8832b139"
 
 [[package]]
 name = "tomlkit"
