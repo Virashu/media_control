@@ -1,4 +1,5 @@
-__all__ = ["write_file", "read_file", "read_file_bytes"]
+__all__ = ["write_file", "read_file", "read_file_bytes", "CustomFormatter"]
+import logging
 
 
 def write_file(filename: str, contents: str | bytes) -> None:
@@ -25,3 +26,33 @@ def read_file_bytes(filename: str) -> bytes:
     """Read a file as bytes"""
     with open(filename, "rb") as f:
         return f.read()
+
+
+class CustomFormatter(logging.Formatter):
+
+    red = "\x1b[31m"
+    green = "\x1b[32m"
+    yellow = "\x1b[33m"
+    blue = "\x1b[34m"
+    grey = "\x1b[38m"
+    bold_red = "\x1b[31;1m"
+    reset = "\x1b[0m"
+
+    FORMATS = {
+        logging.DEBUG: green,
+        logging.INFO: blue,
+        logging.WARNING: yellow,
+        logging.ERROR: red,
+        logging.CRITICAL: bold_red,
+    }
+
+    def format(self, record) -> str:
+        _fmt_p = self._fmt
+        color = self.FORMATS.get(record.levelno)
+
+        if color is None or _fmt_p is None:
+            return "Bruh"
+
+        formatted = color + super().format(record) + self.reset
+
+        return formatted

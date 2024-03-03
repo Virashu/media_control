@@ -12,14 +12,19 @@ import time
 from saaba import App, Request, Response
 
 from .media_session.media_session import MediaSession
-from .utils import write_file
+from .utils import write_file, CustomFormatter
 
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
+handler.setFormatter(
+    CustomFormatter(
+        "{levelname:<10} | {name:<32} | {message}",
+        style="{",
+    )
+)
 logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 logging.getLogger("saaba.saaba").disabled = True
 
