@@ -15,6 +15,15 @@ from .media_session.media_session import MediaSession
 from .utils import write_file
 
 
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
+logging.getLogger("saaba.saaba").disabled = True
+
+
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
 data: dict[str, t.Any] = {}
@@ -41,7 +50,7 @@ commands = {
 def create_command(app: App, name: str, command):
     @app.route(["get", "post"], f"/control/{name}")
     def _(_, res: Response):
-        logging.info("Running command: %s", name)
+        logger.info("Running command: %s", name)
         asyncio.run(command())
         res.send("")
 
@@ -74,7 +83,7 @@ def start_server():
             return
         position = int(float(position))
         asyncio.run(player.seek_percentage(position))
-        logging.info("Seeking to %s", position)
+        logger.info("Seeking to %s", position)
         res.send("")
 
     @app.post("/control/seek")
@@ -85,7 +94,7 @@ def start_server():
         if not isinstance(position, int):
             return
         asyncio.run(player.seek_percentage(position))
-        logging.info("Seeking to %s", position)
+        logger.info("Seeking to %s", position)
         res.send("")
 
     @app.get("/data")

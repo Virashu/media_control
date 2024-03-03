@@ -47,7 +47,6 @@ def _async_callback(callback: Callable) -> Callable:
 
 logger = logging.getLogger(__name__)
 
-
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
 
 MediaSessionUpdateCallback: TypeAlias = Callable[[dict[str, Any]], Any]
@@ -209,13 +208,14 @@ class MediaSession:
     ) -> bytes | None:
 
         if stream_ref is None:
+            logger.debug("Stream reference is None")
             return
 
         readable_stream: _Stream = await stream_ref.open_read_async()
         thumb_buffer: _IBuffer = _Buffer(readable_stream.size)  # type: ignore
 
         try:
-            readable_stream.read_async(
+            await readable_stream.read_async(
                 thumb_buffer, thumb_buffer.capacity, _InputStreamOptions.READ_AHEAD
             )
 
@@ -258,7 +258,7 @@ class MediaSession:
 
         info_dict["genres"] = list(info.genres or [])
 
-        thumb_stream_ref = info.thumbnail
+        thumb_stream_ref: _StreamReference | None = info.thumbnail
 
         thumb_img: bytes
 
@@ -267,6 +267,12 @@ class MediaSession:
         if thumb:  # (thumb != None) & (thumb != b"")
             thumb_img = thumb
         else:
+            # DEBUG
+            if thumb is None:
+                logger.warning("Thumbnail is None")
+            elif thumb == b"":
+                logger.warning("Thumbnail is empty")
+            # END DEBUG
             thumb_img = COVER_PLACEHOLDER_RAW
             logger.warning("No correct thumbnail info, using placeholder.")
 
@@ -279,7 +285,7 @@ class MediaSession:
         info_dict["thumbnail"] = COVER_FILE
         info_dict["thumbnail_url"] = "file:///" + COVER_FILE
 
-        logger.debug(pformat(info_dict))
+        # logger.debug(pformat(info_dict))
         self._update_data("media_properties", info_dict)
 
     async def _playback_info_changed(self, *_):
@@ -324,7 +330,7 @@ class MediaSession:
         if (repeat_mode := info_dict.get("auto_repeat_mode")) is not None:
             info_dict["auto_repeat_mode"] = repeat_codes[int(repeat_mode)]
         info_dict["controls"] = None
-        logger.debug(pformat(info_dict))
+        # logger.debug(pformat(info_dict))
         self._update_data("playback_info", info_dict)
 
     async def _timeline_properties_changed(self, *_):
@@ -365,7 +371,7 @@ class MediaSession:
             info_dict[f] = int(info_dict[f].total_seconds())
         info_dict["last_updated_time"] = int(info_dict["last_updated_time"].timestamp())
         info_dict["position_soft"] = info_dict["position"]
-        logger.debug(pformat(info_dict))
+        # logger.debug(pformat(info_dict))
         self._update_data("timeline_properties", info_dict)
 
     #
