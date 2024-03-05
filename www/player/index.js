@@ -7,9 +7,9 @@
  *
 **/
 
-const $ = document.querySelector;
+const $ = id => document.querySelector(id);
 const docRoot = document.documentElement;
-const pauseIcon = $("#btn-pause").firstElementChild;
+const pauseIcon = $("button#btn-pause").firstElementChild;
 const b64Start = "data:image/png;base64,";
 
 var wakeLock;
@@ -21,6 +21,8 @@ function updateHostName() {
 }
 
 async function setWakeLock() {
+  if (wakeLock) return;
+  if (!navigator.wakeLock) return;
   wakeLock = await navigator.wakeLock.request("screen");
 }
 
@@ -35,23 +37,37 @@ function seek(e) {
 }
 
 function render(data) {
-  let accent = getAverageRGB($("#cover"));
-  docRoot.style.setProperty("--accent", `rgb(${accent.r}, ${accent.g}, ${accent.b})`);
-  docRoot.style.setProperty("--cover", `url(${b64Start + data.metadata.cover_data});`);
-  $("#cover").cover.src = b64Start + data.metadata.cover_data;
-  $("#title").innerText = data.metadata.title;
-  $("#artist").innerText = data.metadata.artist;
+  // Get play state & set icon
+
   let state = data.status == "playing" ? true : false;
   pauseIcon.setAttribute("class", state ? "fa-solid fa-pause" : "fa-solid fa-play");
+
+  // Get full cover
+  let cover_b64 = data.metadata.cover_data;
+  let full_cover = b64Start + cover_b64
+
+  $("#cover").src = full_cover;
+  docRoot.style.setProperty("--cover", `url(${full_cover});`);
+
+  let accent = getAverageRGB($("#cover"));
+  docRoot.style.setProperty("--accent", `rgb(${accent.r}, ${accent.g}, ${accent.b})`);
+
+  $("#title").innerText = data.metadata.title;
+  $("#artist").innerText = data.metadata.artist;
+
   // data.metadata.duration
   // data.position
   docRoot.style.setProperty("--progress", `${data.position / data.metadata.duration * 100}%`);
 }
 
-function update() {
-  fetch(`http://${host}:8888/data`)
-    .then((res) => (res ? res.json() : ""))
-    .then((res) => (res ? render(res) : ""));
+async function update() {
+  let response = await fetch(`http://${host}:8888/data`);
+
+  if (!response) return;
+
+  let data = await response.json();
+
+  render(data);
 }
 
 function download() {
@@ -108,7 +124,6 @@ function getAverageRGB(imgEl) {
   rgb.b = ~~(rgb.b / count);
 
   return rgb;
-
 }
 
 function toggleFullScreen() {
@@ -121,9 +136,7 @@ function toggleFullScreen() {
 
 $("#fullscreen").addEventListener("click", toggleFullScreen);
 $("#seekbar").addEventListener("click", seek);
-
-
-
+$("#download").addEventListener("click", download);
 
 setWakeLock(); // Prevent screen from sleeping
 if (!host) updateHostName(); // If host is not set, try to guess

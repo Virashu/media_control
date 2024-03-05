@@ -114,7 +114,7 @@ def start_server():
 
     @app.get("/data")
     def _(req: Request, res: Response):
-        if req.query and req.query.get("cover", "true") == "true":
+        if (not req.query) or req.query.get("cover", "true") == "true":
             res.send(data)
         else:
             temp_data = copy.deepcopy(data)
