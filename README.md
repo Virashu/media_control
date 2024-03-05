@@ -1,4 +1,17 @@
-# Media Session HTTP API
+# Media Control HTTP API
+
+Python + WinRT
+
+## Introduction
+
+Media Control is a HTTP API for controlling media playback.
+
+It build on top of WinRT and supports any apps that use it.
+But **only** Windows is supported (for now).
+
+For example, it can be used for control using external devices (tablet) or for streaming.
+
+Used [MediaSession lib](https://github.com/virashu/Media_Session).
 
 ## Features
 
