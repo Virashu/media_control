@@ -21,3 +21,8 @@ Command is one of:
   - `shuffle` (toggle on/off)
   - `seek` + `&position=<position in %>`
 
+## Web example
+
+Available in [www/player](./www/player/)
+
+![example](./docs/screenshot.png)
