@@ -7,11 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-"winrt-Windows.Media.Control" = "^2.0.0b1"
-winrt-windows-foundation = "^2.0.0b1"
-winrt-windows-foundation-collections = "^2.0.0b1"
-winrt-windows-media = "^2.0.0b1"
-winrt-windows-storage-streams = "^2.0.0b1"
+media_session = {git = "https://github.com/virashu/media_session"}
 saaba = {git = "https://github.com/virashu/saaba"}
 
 

@@ -63,6 +63,28 @@ files = [
 ]
 
 [[package]]
+name = "media-session"
+version = "0.1.0"
+description = ""
+optional = false
+python-versions = "<3.13,>=3.10"
+files = []
+develop = false
+
+[package.dependencies]
+winrt-windows-foundation = "^2.0.0b2"
+winrt-windows-foundation-collections = "^2.0.0b2"
+winrt-windows-media = "^2.0.0b2"
+winrt-windows-media-control = "^2.0.0b2"
+winrt-windows-storage-streams = "^2.0.0b2"
+
+[package.source]
+type = "git"
+url = "https://github.com/virashu/media_session"
+reference = "HEAD"
+resolved_reference = "5b9ecaf33b0876d3effc1f42318a5bb346e5f285"
+
+[[package]]
 name = "platformdirs"
 version = "4.2.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
@@ -117,7 +139,7 @@ develop = false
 type = "git"
 url = "https://github.com/virashu/saaba"
 reference = "HEAD"
-resolved_reference = "31003ad025d9d606055f9936c96e1cea9c9e7367"
+resolved_reference = "c397eae78a7f26654df66dbe2a06d6be9dfce68b"
 
 [[package]]
 name = "tomlkit"
@@ -295,4 +317,4 @@ all = ["winrt-Windows.Foundation.Collections[all] (==2.0.0-beta.2)", "winrt-Wind
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "34f2decda627a787860c73806fb4e0e154b04835b551b470f5cae7786b43b65d"
+content-hash = "a816ed25e71b4376215776278df2517fe88f49a33638ebb7d09e9e59f185ca2f"

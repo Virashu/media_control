@@ -9,9 +9,9 @@ import threading
 import typing as t
 import time
 
+from media_session import media_session, MediaSession
 from saaba import App, Request, Response
 
-from .media_session.media_session import MediaSession
 from .utils import write_file, CustomFormatter
 
 
@@ -26,17 +26,19 @@ handler.setFormatter(
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-logging.getLogger("saaba.saaba").disabled = True
+logging.getLogger("http.server").disabled = True
 
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
+media_session.COVER_FILE = f"{DIRNAME}/static/media_thumb.png"
+
 
 data: dict[str, t.Any] = {}
 
 
 def update(d) -> None:
     data.update(d)
-    write_file(DIRNAME + "/content/contents.json", json.dumps(data, indent="  "))
+    write_file(f"{DIRNAME}/static/contents.json", json.dumps(data, indent="  "))
 
 
 player = MediaSession(update)
@@ -79,6 +81,7 @@ def start_server():
 
     @app.get("/control/seek")
     def _(req: Request, res: Response):
+        logger.info("Got command: seek")
         if req.query is None:
             return
         position = req.query.get("position")
@@ -93,13 +96,20 @@ def start_server():
 
     @app.post("/control/seek")
     def _(req: Request, res: Response):
+        logger.info("Got command: seek")
+
         if req.body is None:
             return
+
         position = req.body.get("position")
-        if not isinstance(position, int):
+
+        if isinstance(position, (float, int)):
             return
-        asyncio.run(player.seek_percentage(position))
+
+        # Pylance can't recognize isinstance() with tuples
+        asyncio.run(player.seek_percentage(position))  # type: ignore
         logger.info("Seeking to %s", position)
+
         res.send("")
 
     @app.get("/data")

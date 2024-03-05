@@ -21,6 +21,3 @@ Command is one of:
   - `shuffle` (toggle on/off)
   - `seek` + `&position=<position in %>`
 
-## Todo
-
-- [ ] Linux mpris support
