@@ -7,7 +7,7 @@
  *
 **/
 
-const $ = id => document.querySelector(id);
+const $ = selectors => document.querySelector(selectors);
 const docRoot = document.documentElement;
 const pauseIcon = $("button#btn-pause").firstElementChild;
 const b64Start = "data:image/png;base64,";
@@ -61,7 +61,7 @@ function render(data) {
 }
 
 async function update() {
-  let response = await fetch(`http://${host}:8888/data`);
+  let response = await fetch(`http://${host}:8888/data`, { mode: "cors" });
 
   if (!response) return;
 
