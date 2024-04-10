@@ -1,19 +1,19 @@
 """Cli"""
 
 import asyncio
-import json
 import copy
+import json
 import logging
 import sys
 import threading
-import typing as t
 import time
+import typing as t
 
-from media_session import media_session, MediaSession
+from media_session import MediaSession
+from media_session import constants as settings
 from saaba import App, Request, Response
 
-from .utils import write_file, CustomFormatter
-
+from .utils import CustomFormatter, write_file
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
@@ -30,7 +30,7 @@ logging.getLogger("http.server").disabled = True
 
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
-media_session.COVER_FILE = f"{DIRNAME}/static/media_thumb.png"
+settings.COVER_FILE = f"{DIRNAME}/static/media_thumb.png"
 
 
 data: dict[str, t.Any] = {}
