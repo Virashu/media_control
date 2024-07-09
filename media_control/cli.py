@@ -4,13 +4,15 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import sys
 import threading
 import time
 import typing as t
 
-from media_session import MediaSession
+from media_session import AbstractMediaSession, MediaSession
 from media_session import constants as settings
+from media_session.datastructures import MediaInfo
 from saaba import App, Request, Response
 
 from .utils import CustomFormatter, write_file
@@ -27,34 +29,42 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 logging.getLogger("http.server").disabled = True
+logging.getLogger("saaba").disabled = True
 
 
 DIRNAME = __file__.replace("\\", "/").rsplit("/", 1)[0]
-settings.COVER_FILE = f"{DIRNAME}/static/media_thumb.png"
+STATIC_PATH = f"{DIRNAME}/static"
 
+if not os.path.exists(STATIC_PATH):
+    os.mkdir(STATIC_PATH)
+
+settings.COVER_FILE = f"{STATIC_PATH}/media_thumb.png"
 
 data: dict[str, t.Any] = {}
 
 
-def update(d) -> None:
-    data.update(d)
-    write_file(f"{DIRNAME}/static/contents.json", json.dumps(data, indent="  "))
+def update(info: MediaInfo) -> None:
+    info_dict = info.as_dict()
+    data.update(info_dict)
+    write_file(f"{STATIC_PATH}/contents.json", json.dumps(info_dict, indent="  "))
 
 
-player = MediaSession(update)
+player: AbstractMediaSession = MediaSession(update)
+type AsyncPlayerCommand = t.Callable[[], t.Coroutine[t.Any, t.Any, None]]
 
-commands = {
+# id (url) : Callable
+commands: dict[str, AsyncPlayerCommand] = {
     "pause": player.play_pause,
     "prev": player.prev,
-    "repeat": player.toggle_repeat,
-    "shuffle": player.toggle_shuffle,
+    # "repeat": player.toggle_repeat,
+    # "shuffle": player.toggle_shuffle,
     "play": player.play,
     "stop": player.stop,
     "next": player.next,
 }
 
 
-def create_command(app: App, name: str, command):
+def create_command(app: App, name: str, command: AsyncPlayerCommand):
     @app.route(["get", "post"], f"/control/{name}")
     def _(_, res: Response):
         logger.info("Running command: %s", name)
@@ -103,12 +113,11 @@ def start_server():
 
         position = req.body.get("position")
 
-        if isinstance(position, (float, int)):
+        if not isinstance(position, (float, int)):
             return
 
-        # Pylance can't recognize isinstance() with tuples
-        asyncio.run(player.seek_percentage(position))  # type: ignore
-        logger.info("Seeking to %s", position)
+        asyncio.run(player.seek_percentage(position))
+        logger.info("Seeking to %s%", position)
 
         res.send("")
 

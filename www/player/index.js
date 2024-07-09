@@ -31,19 +31,20 @@ function control(command) {
 }
 
 function seek(e) {
-  const percent = e.offsetX / e.target.offsetWidth;
+  const percent = e.offsetX / e.target.offsetWidth * 100;
   // docRoot.style.setProperty("--progress", `${percent * 100}%`);
-  control(`seek?position=${percent * 100}`);
+  fetch(`http://${host}:8888/control/seek`, { method: "POST", body: JSON.stringify({ position: percent }) });
+  // control(`seek?position=${percent * 100}`);
 }
 
 function render(data) {
   // Get play state & set icon
 
-  let state = data.status == "playing" ? true : false;
+  let state = data.state == "playing" ? true : false;
   pauseIcon.setAttribute("class", state ? "fa-solid fa-pause" : "fa-solid fa-play");
 
   // Get full cover
-  let cover_b64 = data.metadata.cover_data;
+  let cover_b64 = data.cover_data;
   let full_cover = b64Start + cover_b64
 
   $("#cover").src = full_cover;
@@ -52,16 +53,20 @@ function render(data) {
   let accent = getAverageRGB($("#cover"));
   docRoot.style.setProperty("--accent", `rgb(${accent.r}, ${accent.g}, ${accent.b})`);
 
-  $("#title").innerText = data.metadata.title;
-  $("#artist").innerText = data.metadata.artist;
+  $("#title").innerText = data.title;
+  $("#artist").innerText = data.artist;
 
-  // data.metadata.duration
-  // data.position
-  docRoot.style.setProperty("--progress", `${data.position / data.metadata.duration * 100}%`);
+  docRoot.style.setProperty("--progress", `${data.position / data.duration * 100}%`);
 }
 
 async function update() {
-  let response = await fetch(`http://${host}:8888/data`, { mode: "cors" });
+  var response;
+
+  try {
+    response = await fetch(`http://${host}:8888/data`, { mode: "cors" });
+  } catch (e) {
+    return;
+  }
 
   if (!response) return;
 

@@ -7,9 +7,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-media_session = {git = "https://github.com/virashu/media_session"}
-saaba = {git = "https://github.com/virashu/saaba"}
+media_session = { git = "https://github.com/virashu/media_session" }
+saaba = { git = "https://github.com/virashu/saaba" }
 
+[tool.poetry.scripts]
+start = "media_control.__main__:main"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^3.1.0"
