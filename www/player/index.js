@@ -1,4 +1,5 @@
 "use strict";
+import { NoSleep } from "./noSleep/nosleep.js";
 
 /*
  * CAUTION
@@ -7,23 +8,18 @@
  *
 **/
 
-const $ = selectors => document.querySelector(selectors);
+
+const $ = document.querySelector.bind(document);
 const docRoot = document.documentElement;
 const pauseIcon = $("button#btn-pause").firstElementChild;
 const b64Start = "data:image/png;base64,";
 
-var wakeLock;
 var host = null;
+var noSleep = new NoSleep();
 
 function updateHostName() {
   host = window.location.host;
   if (host === "") host = "127.0.0.1";
-}
-
-async function setWakeLock() {
-  if (wakeLock) return;
-  if (!navigator.wakeLock) return;
-  wakeLock = await navigator.wakeLock.request("screen");
 }
 
 function control(command) {
@@ -86,6 +82,20 @@ async function downloadBase64Image(url, filename) {
   link.click();
 }
 
+function toggleNoSleep() {
+  if (!noSleep) return;
+
+  let buttonEl = $("#nosleepenable").firstElementChild;
+  buttonEl.className = noSleep.enabled ? 'fa-solid fa-bed' : 'fa-regular fa-face-smile';
+
+  console.log(buttonEl);
+  if (noSleep.enabled) {
+    noSleep.disable();
+  } else {
+    noSleep.enable();
+  }
+}
+
 function getAverageRGB(imgEl) {
 
   var blockSize = 5, // only visit every 5 pixels
@@ -143,7 +153,8 @@ $("#fullscreen").addEventListener("click", toggleFullScreen);
 $("#seekbar").addEventListener("click", seek);
 $("#download").addEventListener("click", download);
 
-setWakeLock(); // Prevent screen from sleeping
+$("#nosleepenable").addEventListener("click", toggleNoSleep);
+
 if (!host) updateHostName(); // If host is not set, try to guess
 
 update();
