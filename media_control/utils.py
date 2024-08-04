@@ -7,13 +7,9 @@ def write_file(filename: str, contents: str | bytes) -> None:
     if isinstance(contents, str):
         with open(filename, "w", encoding="utf-8") as f:
             f.write(contents)
-    elif isinstance(contents, bytes):
+    else:
         with open(filename, "wb") as f:
             f.write(contents)
-    else:
-        raise TypeError(
-            f"Wrong type. Expected `str` or `bytes`, got `{type(contents)}`"
-        )
 
 
 def read_file(filename: str) -> str:
@@ -46,12 +42,12 @@ class CustomFormatter(logging.Formatter):
         logging.CRITICAL: bold_red,
     }
 
-    def format(self, record) -> str:
+    def format(self, record: logging.LogRecord) -> str:
         _fmt_p = self._fmt
         color = self.FORMATS.get(record.levelno)
 
         if color is None or _fmt_p is None:
-            return "Bruh"
+            return record.msg
 
         formatted = color + super().format(record) + self.reset
 

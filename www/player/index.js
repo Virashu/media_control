@@ -22,6 +22,9 @@ function updateHostName() {
   if (host === "") host = "127.0.0.1";
 }
 
+/**
+ * @param {string} command 
+ */
 function control(command) {
   fetch(`http://${host}:8888/control/${command}`);
 }
@@ -35,7 +38,6 @@ function seek(e) {
 
 function render(data) {
   // Get play state & set icon
-
   let state = data.state == "playing" ? true : false;
   pauseIcon.setAttribute("class", state ? "fa-solid fa-pause" : "fa-solid fa-play");
 
@@ -96,6 +98,10 @@ function toggleNoSleep() {
   }
 }
 
+/**
+ * @param {HTMLImageElement} imgEl 
+ * @returns {{ r: number; g: number; b: number}}
+ */
 function getAverageRGB(imgEl) {
 
   var blockSize = 5, // only visit every 5 pixels
@@ -154,6 +160,10 @@ $("#seekbar").addEventListener("click", seek);
 $("#download").addEventListener("click", download);
 
 $("#nosleepenable").addEventListener("click", toggleNoSleep);
+
+$("#btn-prev").onclick = () => control("prev");
+$("#btn-pause").onclick = () => control("pause");
+$("#btn-next").onclick = () => control("next");
 
 if (!host) updateHostName(); // If host is not set, try to guess
 
