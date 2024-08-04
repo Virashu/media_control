@@ -9,6 +9,7 @@ import signal
 import sys
 import threading
 import time
+from types import FrameType
 import typing as t
 
 from media_session import AbstractMediaSession, MediaSession
@@ -148,19 +149,22 @@ LOCK_FILE = os.path.join(ROOT, "pid.lock")
 
 def main():
     if os.path.exists(LOCK_FILE):
+
         if sys.argv[-1] == "stop":
             with open(LOCK_FILE, "r") as f:
                 pid = int(f.read())
+
             os.kill(pid, signal.SIGTERM)
-            os.remove(LOCK_FILE)
             logger.info("Stopped")
+
+            os.remove(LOCK_FILE)
             sys.exit()
+
         else:
             logger.critical("Already running")
             sys.exit(1)
 
-    with open(LOCK_FILE, "w") as f:
-        f.write(str(os.getpid()))
+    write_file(LOCK_FILE, str(os.getpid()))
 
     player: AbstractMediaSession = MediaSession(update)
 
@@ -169,12 +173,12 @@ def main():
 
     running = True
 
-    def stop() -> None:
+    def stop(signalnum: int, frame: FrameType | None) -> None:
         nonlocal running
         logger.info("Received SIGTERM")
         running = False
 
-    signal.signal(signal.SIGTERM, stop)  # type: ignore
+    signal.signal(signal.SIGTERM, stop)
 
     try:
         p1.start()
