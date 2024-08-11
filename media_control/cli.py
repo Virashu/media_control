@@ -154,8 +154,11 @@ def main():
             with open(LOCK_FILE, "r") as f:
                 pid = int(f.read())
 
-            os.kill(pid, signal.SIGTERM)
-            logger.info("Stopped")
+            try:
+                os.kill(pid, signal.SIGTERM)
+                logger.info("Stopped")
+            except OSError:
+                logger.warning("False lock file")
 
             os.remove(LOCK_FILE)
             sys.exit()
